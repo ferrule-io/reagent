@@ -10,6 +10,9 @@ export type SpawnLike = (
 };
 
 export interface LaunchFlags {
+  /** Path to the reagent plugin (repo root). Headless `claude -p` does NOT see user-installed
+   *  plugins, so we load it explicitly via --plugin-dir. */
+  pluginDir: string;
   /** Permission mode passed to `claude -p` (locked in Plan 3 Task 0). */
   permissionMode: string;
   /** Comma-separated --allowedTools list including the bridge MCP tools. */
@@ -42,6 +45,8 @@ export class Launcher implements SessionLauncher {
     const args = [
       "-p",
       prompt,
+      "--plugin-dir",
+      this.flags.pluginDir,
       "--output-format",
       "json",
       "--permission-mode",
@@ -59,13 +64,23 @@ export class Launcher implements SessionLauncher {
     child.unref();
   }
 
-  /** Launch a fresh session for new phone-submitted work (uses the bridge-assigned id). */
+  /**
+   * Launch a fresh session for new phone-submitted work (uses the bridge-assigned id).
+   * Headless `claude -p` does NOT expand plugin slash commands, so we invoke the skill
+   * by name in natural language; its $ARGUMENTS are populated from the skill-invocation args.
+   */
   startAsync(opts: { id: string; repoPath: string; request: string }): void {
-    this.run(`/reagent:reagent start-async ${opts.id} ${opts.repoPath} ${opts.request}`, opts.repoPath);
+    this.run(
+      `Use the reagent:reagent-pipeline skill with arguments: start-async ${opts.id} ${opts.repoPath} ${opts.request}`,
+      opts.repoPath,
+    );
   }
 
   /** Re-launch a short session to continue a work item after the human decided. */
   resume(opts: { id: string; repoPath: string }): void {
-    this.run(`/reagent:reagent resume ${opts.id}`, opts.repoPath);
+    this.run(
+      `Use the reagent:reagent-pipeline skill with arguments: resume ${opts.id}`,
+      opts.repoPath,
+    );
   }
 }

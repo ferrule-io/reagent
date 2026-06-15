@@ -11,6 +11,7 @@ function recordingSpawn() {
 }
 
 const FLAGS = {
+  pluginDir: "/plugin/root",
   permissionMode: "acceptEdits",
   allowedTools:
     "Read,Edit,Write,Bash,Grep,Glob,Task,mcp__plugin_reagent_reagent-bridge__*,mcp__reagent-bridge__*",
@@ -24,10 +25,12 @@ describe("Launcher", () => {
     const c = calls[0];
     expect(c.cmd).toBe("claude");
     expect(c.args).toContain("-p");
-    expect(c.args.join(" ")).toContain("/reagent:reagent start-async wi_1 /tmp/repo");
+    expect(c.args.join(" ")).toContain("reagent:reagent-pipeline skill with arguments: start-async wi_1 /tmp/repo");
     expect(c.args.join(" ")).toContain("do the thing");
     expect(c.args).toContain("--permission-mode");
     expect(c.args).toContain("acceptEdits");
+    expect(c.args).toContain("--plugin-dir");
+    expect(c.args).toContain("/plugin/root");
     expect(c.opts.cwd).toBe("/tmp/repo");
     // subscription auth: ANTHROPIC_API_KEY must be present-but-undefined in the spawn env
     expect("ANTHROPIC_API_KEY" in c.opts.env).toBe(true);
@@ -38,7 +41,7 @@ describe("Launcher", () => {
     const { calls, spawn } = recordingSpawn();
     new Launcher(spawn, FLAGS).resume({ id: "wi_2", repoPath: "/tmp/repo" });
     const c = calls[0];
-    expect(c.args.join(" ")).toContain("/reagent:reagent resume wi_2");
+    expect(c.args.join(" ")).toContain("reagent:reagent-pipeline skill with arguments: resume wi_2");
     expect(c.opts.cwd).toBe("/tmp/repo");
   });
 });

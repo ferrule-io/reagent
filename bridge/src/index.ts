@@ -1,5 +1,7 @@
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { loadConfig } from "./config.js";
 import { StateStore } from "./state/store.js";
 import { Registry } from "./registry/registry.js";
@@ -25,7 +27,10 @@ async function main() {
   }
 
   const mcpDeps = { store, registry, checkpoints, checkpointPollMs: cfg.checkpointPollMs };
+  // The reagent plugin is the repo root (this file lives at <repo>/bridge/{src,dist}/index).
+  const pluginDir = process.env.REAGENT_PLUGIN_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "..", "..");
   const launcher = new Launcher(spawn as unknown as SpawnLike, {
+    pluginDir,
     permissionMode: cfg.launchPermissionMode,
     allowedTools: cfg.launchAllowedTools,
   });
