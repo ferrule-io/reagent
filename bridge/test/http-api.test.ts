@@ -77,3 +77,67 @@ describe("HTTP API", () => {
     expect(res.statusCode).toBe(409);
   });
 });
+
+describe("HTTP API — launcher wiring", () => {
+  let dir: string;
+  let store: StateStore;
+  let reg: Registry;
+  let cps: CheckpointStore;
+  let launcher: { starts: any[]; resumes: any[]; startAsync: (o: any) => void; resume: (o: any) => void };
+  let app: ReturnType<typeof buildHttpServer>;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "reagent-launch-"));
+    store = new StateStore(dir);
+    reg = new Registry();
+    cps = new CheckpointStore();
+    launcher = {
+      starts: [],
+      resumes: [],
+      startAsync(o) { this.starts.push(o); },
+      resume(o) { this.resumes.push(o); },
+    };
+    app = buildHttpServer({ store, registry: reg, checkpoints: cps, launcher });
+  });
+  afterEach(async () => {
+    await app.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("launches a session when new phone work is created", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/items",
+      payload: { title: "New", repoPath: "/tmp/repo", request: "do it" },
+    });
+    const id = res.json().id;
+    expect(launcher.starts).toHaveLength(1);
+    expect(launcher.starts[0]).toEqual({ id, repoPath: "/tmp/repo", request: "do it" });
+  });
+
+  it("re-launches resume on approval of a phone item", async () => {
+    const item = store.create({ id: "p", title: "P", repoPath: "/tmp/repo", request: "q", origin: "phone" });
+    cps.open("p", "cp_p", "approve?");
+    store.update("p", (it) => {
+      it.phase = "PLAN_APPROVAL";
+      it.pendingCheckpoint = { id: "cp_p", kind: "PLAN_APPROVAL", prompt: "approve?", createdAt: new Date().toISOString() };
+    });
+    reg.upsert(store.get("p")!);
+
+    await app.inject({ method: "POST", url: "/api/items/p/decision", payload: { result: "approve" } });
+    expect(launcher.resumes).toEqual([{ id: "p", repoPath: "/tmp/repo" }]);
+  });
+
+  it("does NOT re-launch on approval of a terminal item (its live session continues)", async () => {
+    const item = store.create({ id: "t", title: "T", repoPath: "/tmp/repo", request: "q", origin: "terminal" });
+    cps.open("t", "cp_t", "approve?");
+    store.update("t", (it) => {
+      it.phase = "PLAN_APPROVAL";
+      it.pendingCheckpoint = { id: "cp_t", kind: "PLAN_APPROVAL", prompt: "approve?", createdAt: new Date().toISOString() };
+    });
+    reg.upsert(store.get("t")!);
+
+    await app.inject({ method: "POST", url: "/api/items/t/decision", payload: { result: "approve" } });
+    expect(launcher.resumes).toEqual([]);
+  });
+});

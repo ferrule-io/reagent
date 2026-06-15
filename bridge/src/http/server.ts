@@ -6,17 +6,20 @@ import { readFileSync } from "node:fs";
 import type { StateStore } from "../state/store.js";
 import type { Registry } from "../registry/registry.js";
 import type { CheckpointStore } from "../checkpoints/checkpoints.js";
+import type { SessionLauncher } from "../launch/launcher.js";
 
 export interface HttpDeps {
   store: StateStore;
   registry: Registry;
   checkpoints: CheckpointStore;
+  /** Optional: when present, phone-submitted work is launched and re-launched on approval. */
+  launcher?: SessionLauncher;
 }
 
 const webDir = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 
 export function buildHttpServer(deps: HttpDeps): FastifyInstance {
-  const { store, registry, checkpoints } = deps;
+  const { store, registry, checkpoints, launcher } = deps;
   const app = Fastify({ logger: false });
 
   app.get("/api/items", async () => registry.list());
@@ -35,6 +38,8 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
     const id = `wi_${randomUUID().slice(0, 8)}`;
     const item = store.create({ id, title, repoPath, request, origin: "phone" });
     registry.upsert(item);
+    // Launch a headless session to drive this work item (investigate -> open gate -> exit).
+    launcher?.startAsync({ id, repoPath, request });
     return reply.code(201).send(item);
   });
 
@@ -50,6 +55,11 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
       return reply.code(409).send({ error: "no pending checkpoint" });
     }
     checkpoints.resolve(cpId, { result, note });
+    // Phone-origin work has no live session waiting — re-launch one to continue.
+    // Terminal-origin work has a live polling session that will continue itself.
+    if (item.origin === "phone") {
+      launcher?.resume({ id, repoPath: item.repoPath });
+    }
     return { ok: true };
   });
 

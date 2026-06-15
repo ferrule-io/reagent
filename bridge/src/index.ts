@@ -1,4 +1,5 @@
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { spawn } from "node:child_process";
 import { loadConfig } from "./config.js";
 import { StateStore } from "./state/store.js";
 import { Registry } from "./registry/registry.js";
@@ -6,6 +7,7 @@ import { Watcher } from "./registry/watcher.js";
 import { CheckpointStore } from "./checkpoints/checkpoints.js";
 import { buildMcpServer } from "./mcp/server.js";
 import { buildHttpServer } from "./http/server.js";
+import { Launcher, type SpawnLike } from "./launch/launcher.js";
 
 async function main() {
   const cfg = loadConfig();
@@ -23,7 +25,11 @@ async function main() {
   }
 
   const mcpDeps = { store, registry, checkpoints, checkpointPollMs: cfg.checkpointPollMs };
-  const app = buildHttpServer({ store, registry, checkpoints });
+  const launcher = new Launcher(spawn as unknown as SpawnLike, {
+    permissionMode: cfg.launchPermissionMode,
+    allowedTools: cfg.launchAllowedTools,
+  });
+  const app = buildHttpServer({ store, registry, checkpoints, launcher });
 
   // Mount the MCP server at /mcp using stateless Streamable HTTP transport.
   // Per-request pattern: each POST creates a fresh transport + server instance
