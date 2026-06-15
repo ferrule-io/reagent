@@ -10,21 +10,23 @@ cd bridge && npm run dev      # serves MCP at http://localhost:4319/mcp and the 
 
 The plugin's `.mcp.json` connects the session to that bridge. Keep it running.
 
-## Loading the plugin (confirm for your Claude Code version)
+## Installing the plugin (interactive use)
 
-This repo *is* the plugin: `.claude-plugin/plugin.json`, `.mcp.json`, `skills/`, `agents/`, `commands/` at the root. Load it via one of (confirm which your version supports):
+This repo *is* the plugin: `.claude-plugin/{plugin.json,marketplace.json}`, `.mcp.json`, `skills/`, `agents/`, `commands/` at the root. Install it as a local marketplace (confirmed working):
 
-- Starting `claude` in the repo (a project-level plugin/`.mcp.json` may load automatically), or
-- a local-plugin dev flag (`claude --plugin-dir .` or equivalent — check `claude --help`), or
-- a local marketplace: `/plugin marketplace add .` then `/plugin install reagent`.
+```
+/plugin marketplace add /Users/mquinlan/Workspace/purse/reagent
+/plugin install reagent@reagent
+/reload-plugins
+```
 
-Verify it loaded: `/reagent` is available, and the `reagent-bridge` MCP tools are connected (ask the session to list its `reagent-bridge` tools).
+Re-sync after editing plugin files: `/plugin marketplace update reagent` + `/reload-plugins` (or remove + re-add). Commands are namespaced `/<plugin>:<command>`.
 
-## Commands
+## Commands (interactive)
 
-- `/reagent ping` — registers a throwaway work item; confirm it appears at http://localhost:4319/. (Connectivity check.)
-- `/reagent start <repoPath> <request...>` — begin work: the skill investigates `repoPath`, proposes a direction, and opens an **approval gate**. Approve/Reject from the bridge web UI (or your phone). On approval, the scoped `reagent-executor` subagent makes the change on branch `reagent/<id>` and commits locally.
-- `/reagent resume <id>` — reconstruct an in-flight item from the bridge and continue it.
+- `/reagent:reagent ping` — registers a throwaway work item; confirm it appears at http://localhost:4319/. (Connectivity check.)
+- `/reagent:reagent start <repoPath> <request...>` — begin work interactively: the skill investigates `repoPath`, proposes a direction, opens an **approval gate**, and **stays open polling** until you Approve/Reject from the bridge UI. On approval, the scoped `reagent-executor` subagent makes the change on `reagent/<id>` and commits.
+- `/reagent:reagent resume <id>` — reconstruct an in-flight item from the bridge and continue it.
 
 ## How it works
 
@@ -32,6 +34,36 @@ Verify it loaded: `/reagent` is available, and the `reagent-bridge` MCP tools ar
 - **Scope guard:** EXECUTE runs in the `reagent-executor` subagent, whose `tools:` allow-list confines it to read/edit/git within the target repo (no web, no pushing). Per-unit path scoping + parallel worktrees come in a later milestone.
 - **MCP tool names** follow `mcp__plugin_reagent_reagent-bridge__<tool>`; they're pre-authorized in `.claude/settings.json` so the workflow runs without prompts.
 
-## Marketplace (finalized in Plan 3)
+## Headless launch (Plan 3 — phone-driven, validated)
 
-Eventually: `/plugin marketplace add <this-repo>` → `/plugin install reagent`. Plan 3 also adds headless session launch from the phone (the bridge spawns a `claude -p` session running this plugin) and bundles/auto-starts the bridge, so the manual "run the bridge / load the plugin" steps go away.
+Phone-submitted work is run by **launched headless `claude -p` sessions** that the bridge spawns. Two facts learned the hard way and locked into the Launcher:
+
+1. **Headless does NOT expand plugin slash commands**, so the session invokes the skill in natural language: `Use the reagent:reagent-pipeline skill with arguments: <verb> <args>`.
+2. **Headless does NOT see user-installed plugins**, so the plugin is loaded explicitly with `--plugin-dir <repo-root>`.
+
+The exact launch command (what the bridge runs; also runnable by hand to validate):
+
+```sh
+cd <repoPath> && ANTHROPIC_API_KEY= claude -p \
+  "Use the reagent:reagent-pipeline skill with arguments: start-async <id> <repoPath> <request>" \
+  --plugin-dir /Users/mquinlan/Workspace/purse/reagent \
+  --output-format json \
+  --permission-mode acceptEdits \
+  --allowedTools "Read,Edit,Write,Bash,Grep,Glob,Task,mcp__plugin_reagent_reagent-bridge__*,mcp__reagent-bridge__*"
+```
+
+- `ANTHROPIC_API_KEY=` keeps it on the subscription (the Launcher forces it undefined in the spawn env).
+- `acceptEdits` + the `--allowedTools` list make it run prompt-free.
+- `--plugin-dir` defaults in the bridge to the repo root (computed from the bridge module location); override with `REAGENT_PLUGIN_DIR`. Permission mode / tools are overridable via `REAGENT_LAUNCH_PERMISSION_MODE` / `REAGENT_LAUNCH_ALLOWED_TOOLS`.
+
+**The launched flow (`origin: "phone"`):** new work from the PWA → bridge `startAsync` → the session investigates, opens the gate, and **exits** → you approve from the phone → bridge `resume` re-launches → the session executes and reaches DONE. (Interactive `start`, `origin: "terminal"`, stays open and polls instead — no re-launch.)
+
+## Remote access (Tailscale)
+
+The bridge listens on `0.0.0.0:4319` with no auth — Tailscale is the access boundary:
+
+```sh
+tailscale serve --bg 4319    # then open https://<machine>.<tailnet>.ts.net/ on your phone
+```
+
+Do not expose `:4319` publicly.
