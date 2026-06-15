@@ -25,6 +25,7 @@ export class CheckpointStore {
   resolve(checkpointId: string, decision: Decision): void {
     const p = this.pending.get(checkpointId);
     if (!p) throw new Error(`unknown checkpoint: ${checkpointId}`);
+    if (p.decision) return; // idempotent: first decision wins
     p.decision = decision;
     for (const wake of p.waiters.splice(0)) wake();
   }

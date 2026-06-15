@@ -1,5 +1,4 @@
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { loadConfig } from "./config.js";
 import { StateStore } from "./state/store.js";
 import { Registry } from "./registry/registry.js";

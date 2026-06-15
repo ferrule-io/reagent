@@ -84,8 +84,15 @@ export function buildMcpServer(deps: McpDeps): McpServer {
       const item = store.get(id);
       if (!item) throw new Error(`work item not found: ${id}`);
 
+      // If a decision was already recorded for the current gate (e.g. the session
+      // crashed after receiving it but before calling complete_work_item), return
+      // it rather than re-opening the gate and re-asking the human.
+      if (item.pendingCheckpoint?.decision) {
+        return json({ status: "decided", decision: item.pendingCheckpoint.decision });
+      }
+
       let cpId = item.pendingCheckpoint?.id;
-      if (!cpId || item.pendingCheckpoint?.decision) {
+      if (!cpId) {
         cpId = `cp_${randomUUID().slice(0, 8)}`;
         checkpoints.open(id, cpId, prompt);
         store.update(id, (it) => {

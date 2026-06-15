@@ -41,6 +41,9 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
   app.post("/api/items/:id/decision", async (req, reply) => {
     const { id } = req.params as { id: string };
     const { result, note } = req.body as { result: "approve" | "reject"; note?: string };
+    if (result !== "approve" && result !== "reject") {
+      return reply.code(400).send({ error: "result must be 'approve' or 'reject'" });
+    }
     const item = store.get(id);
     const cpId = item?.pendingCheckpoint?.id;
     if (!item || !cpId || !checkpoints.has(cpId)) {

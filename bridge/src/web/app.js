@@ -14,7 +14,7 @@ function card(it) {
   div.className = "item" + (gate ? " gate" : "");
   div.innerHTML = `
     <div class="phase">${it.phase} · ${it.origin}</div>
-    <strong>${it.title}</strong>
+    <strong>${escapeHtml(it.title)}</strong>
     ${it.plan ? `<pre>${escapeHtml(it.plan)}</pre>` : ""}
     ${(it.log || []).slice(-4).map((l) => `<pre>· ${escapeHtml(l.line)}</pre>`).join("")}
   `;
