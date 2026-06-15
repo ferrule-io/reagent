@@ -63,8 +63,8 @@ describe("HTTP API", () => {
     expect(res.statusCode).toBe(200);
 
     const decided = await cps.awaitDecision("cp_b", 100);
-    expect(decided.status).toBe("decided");
-    expect(decided.decision?.result).toBe("approve");
+    if (decided.status !== "decided") throw new Error("expected decided");
+    expect(decided.decision.result).toBe("approve");
   });
 
   it("returns 409 when deciding an item with no pending checkpoint", async () => {

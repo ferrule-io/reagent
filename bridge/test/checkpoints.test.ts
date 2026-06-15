@@ -16,17 +16,17 @@ describe("CheckpointStore", () => {
     const waiting = cp.awaitDecision("cp_2", 1000);
     setTimeout(() => cp.resolve("cp_2", { result: "approve" }), 20);
     const res = await waiting;
-    expect(res.status).toBe("decided");
-    expect(res.decision?.result).toBe("approve");
+    if (res.status !== "decided") throw new Error("expected decided");
+    expect(res.decision.result).toBe("approve");
   });
 
   it("returns the decision immediately if it was already recorded", async () => {
     cp.open("wi_1", "cp_3", "approve?");
     cp.resolve("cp_3", { result: "reject", note: "wrong approach" });
     const res = await cp.awaitDecision("cp_3", 1000);
-    expect(res.status).toBe("decided");
-    expect(res.decision?.result).toBe("reject");
-    expect(res.decision?.note).toBe("wrong approach");
+    if (res.status !== "decided") throw new Error("expected decided");
+    expect(res.decision.result).toBe("reject");
+    expect(res.decision.note).toBe("wrong approach");
   });
 
   it("throws when awaiting an unknown checkpoint", async () => {
