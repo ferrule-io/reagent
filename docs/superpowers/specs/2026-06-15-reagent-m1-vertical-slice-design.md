@@ -21,8 +21,9 @@ M1 deliberately excludes the DAG scheduler, parallel worktrees, adversarial revi
 - One work item flows: `INTAKE → INVESTIGATE → [PLAN_APPROVAL gate] → EXECUTE → DONE`.
 - `INVESTIGATE` and `EXECUTE` are **real** Claude Agent SDK sessions authenticated against the user's Claude subscription.
 - The pipeline **durably suspends** at `PLAN_APPROVAL`, notifies the PWA, and **resumes** on the user's approve/reject — including across a process restart.
+- **Resumable work via reconstruction (not transcript replay).** The durable state file records the *structured state of the work* — the request, the approved plan, which steps are done, the work item's branch + commits, and stage outputs — so any later process can **figure out where the work is and what's left** and continue it in a fresh, briefed session. The harness reconstructs progress from persisted state + the live repo, rather than dumping the old session's message history into a new session.
 - A minimal self-hosted **PWA** to: start a work item (freeform text), watch live status, view the proposed plan, approve/reject the gate, and see the result. Reachable remotely via Tailscale.
-- Crash-resilience: on restart, in-flight items rehydrate from durable storage and resume.
+- Crash-resilience: on restart, in-flight items rehydrate from their state file; the harness determines the current phase and remaining work and continues, rather than replaying old transcripts.
 
 **M1 non-goals (deferred — see Appendix A)**
 - Multiple units / decomposition / dependency DAG / parallel worktrees.
@@ -31,6 +32,7 @@ M1 deliberately excludes the DAG scheduler, parallel worktrees, adversarial revi
 - Paste-a-link/ID intake (freeform text only in M1).
 - Web Push (M1 uses live in-app updates + reconnect; push lands in a later milestone).
 - Multiple concurrent work items (M1 handles one active item; storage schema leaves room for more).
+- Packaging as a Claude Code plugin + marketplace entry (target requirement — see Appendix A). M1 runs directly via `node`, but the repo is laid out so plugin packaging drops in later without restructuring.
 
 ## 3. Authentication & model
 
@@ -43,7 +45,7 @@ M1 deliberately excludes the DAG scheduler, parallel worktrees, adversarial revi
 A single process composed of these units, each with one responsibility and a well-defined interface:
 
 - **Orchestrator (state machine).** Owns the lifecycle of a work item. Every state transition is persisted *before* side effects so the machine can suspend for hours and resume cleanly. Pure-ish: given current state + an event, it computes the next state and the action to perform.
-- **Store (durable state).** SQLite. Persists work items, current phase, the investigation result, the proposed plan, the pending checkpoint, the user's decision, and a log/artifact trail. Single source of truth on restart.
+- **Store (durable state).** A per-work-item **YAML state file** (human-readable, inspectable, git-friendly). Persists the **structured work state** used to reconstruct progress: the work item, current phase, the investigation result, the proposed plan, step/stage statuses, the work item's branch + commits, the pending checkpoint, the user's decision, and a log/artifact trail. Single source of truth on restart. (SQLite is the upgrade path if parallel units in later milestones need transactional/concurrent writes.)
 - **Stage runners (Agent SDK adapter).** Each pipeline stage is a function that spawns a Claude Agent SDK `query()` with a stage-specific `systemPrompt`, `allowedTools`, and (for execute) a `canUseTool` scope guard. All SDK access goes through one `AgentRunner` interface so the pipeline is testable with a **fake runner** (deterministic, no model calls, no cost).
 - **Checkpoint/gate system.** Suspends the machine at `PLAN_APPROVAL`: persists a checkpoint record, emits a "needs input" event to the PWA, and parks. On the user's decision it validates and resumes the machine.
 - **HTTP/API + PWA.** A small HTTP server (e.g. Fastify or Hono) that serves the PWA and exposes endpoints to start work, list/get items, stream live updates (SSE), and respond to a checkpoint. The PWA is a minimal single-page app (start form, status view, plan + approve/reject, result view).
@@ -77,11 +79,12 @@ A single process composed of these units, each with one responsibility and a wel
 
 Every transition writes to the Store before performing its side effect, so a crash between any two steps resumes correctly.
 
-## 6. Durable suspend/resume (the core risk M1 retires)
+## 6. Durable progress + resume-by-reconstruction (the core risk M1 retires)
 
-- A work item's row holds `phase` and a `pending_checkpoint` (nullable). When the machine enters `PLAN_APPROVAL`, it writes `phase=PLAN_APPROVAL` + a checkpoint record, then returns control (no thread blocked).
-- The PWA's approve/reject hits an endpoint that records the decision against the checkpoint and signals the orchestrator to advance.
-- **On process start**, the orchestrator scans the Store for items not in a terminal state and rehydrates them: items at `PLAN_APPROVAL` simply re-emit their checkpoint to any connected PWA and keep waiting; items mid-`INVESTIGATE`/`EXECUTE` (i.e., crashed during an SDK stage) are restarted from the beginning of that stage (stages are idempotent at the work-item level — execute always works on the item's own branch, re-running re-derives the change).
+- The state file is the source of truth for *where the work is*: `phase`, a `pending_checkpoint` (nullable), and the structured outputs produced so far (investigation result, approved plan, the work item's branch + commits, execute summary). It records enough that progress can be reconstructed **without** the model's conversation history.
+- When the machine enters `PLAN_APPROVAL`, it writes `phase=PLAN_APPROVAL` + a checkpoint, then returns control (no thread blocked). The PWA's approve/reject records the decision and signals the orchestrator to advance.
+- **Resume by reconstruction, not transcript replay.** On process start (after a crash) — or when a work item is deliberately picked up in a separate session/process — the orchestrator reads the state file, determines the current phase and what remains, and continues by **briefing a fresh Agent SDK session** with the plan, what's already done, and the live repo/git state. It does *not* dump the prior session's messages into the new session. Each stage is written to be idempotent at the work-item level (execute always operates on the item's own branch), so re-entering a partially-done stage converges rather than duplicating work.
+- The harness leans on the repo itself (branch, commits, working tree) as ground truth alongside the state file — "figure out where we are" is answered by reading durable state + inspecting the repo, not by remembering a conversation.
 - SDK stage calls run with a timeout; a stage that errors or times out transitions the item to `FAILED` with the error captured, surfaced in the PWA (not a silent hang).
 
 ## 7. Scope guard (foundation for later guardrails)
@@ -127,9 +130,10 @@ This is the agreed end-state the milestones build toward. **Not in scope for the
 - **Hard gates:** solution selection (when multiple), plan approval, PR/MR submission.
 - **Intake (full):** freeform text **plus** paste-a-link/ID with best-effort MCP fetch (Sentry / GitLab / GitHub) to seed investigation; degrades to treating the link as context if no MCP matches.
 - **Remote interface (full):** self-hosted PWA with Web Push for "needs input" checkpoints, live progress over SSE/WebSocket, plan/DAG/diff rendering, and controls to start work, resume pending work, respond to gates, and flip the autonomy dial.
+- **Distribution / installability:** the harness ships as a **Claude Code plugin** with a **marketplace** entry, installable via the plugin commands the user already uses (`/plugin marketplace add <repo>` → `/plugin install reagent`). The plugin bundles the service + PWA and provides slash-command controls to launch and manage the local harness. The harness itself remains the Agent SDK service: a *pure* in-Claude-Code plugin can't host a durable background orchestrator + web server + checkpoints, so the plugin is the **install / launch / control surface**, not the runtime. (If you instead intend reagent to run entirely *inside* a Claude Code session as plugin components, that's a substrate change worth flagging before M2 — it trades the durable background orchestrator for Claude Code's interactive session model.)
 
 **Milestones**
 - **M1** — vertical slice (this doc): state machine + SQLite + one real SDK stage + one hard gate + minimal PWA + Tailscale, end-to-end on a trivial task.
 - **M2** — full pipeline: investigate/plan/decompose/execute with the dependency DAG + worktrees.
 - **M3** — adversarial per-unit review + holistic review + scoped guardrails.
-- **M4** — autonomy dial, intake integrations (paste link/ID), PR/MR submission, Web Push, polish.
+- **M4** — autonomy dial, intake integrations (paste link/ID), PR/MR submission, Web Push, **plugin + marketplace packaging**, polish.
