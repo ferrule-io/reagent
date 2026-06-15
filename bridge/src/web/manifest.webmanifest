@@ -1,0 +1,9 @@
+{
+  "name": "reagent",
+  "short_name": "reagent",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#14110f",
+  "theme_color": "#1f1b18",
+  "icons": []
+}
