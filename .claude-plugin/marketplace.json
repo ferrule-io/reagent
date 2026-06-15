@@ -1,0 +1,14 @@
+{
+  "name": "reagent",
+  "owner": {
+    "name": "Mike Quinlan",
+    "url": "https://github.com/mjquinlan2000"
+  },
+  "plugins": [
+    {
+      "name": "reagent",
+      "source": "./",
+      "description": "Remote-controllable coding harness: drives a work item through investigate -> plan approval -> execute, with human gates answerable from your phone via the reagent bridge."
+    }
+  ]
+}
