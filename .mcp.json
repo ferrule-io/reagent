@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "reagent-bridge": {
+      "type": "http",
+      "url": "http://localhost:4319/mcp"
+    }
+  }
+}

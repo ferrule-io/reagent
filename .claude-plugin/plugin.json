@@ -1,0 +1,5 @@
+{
+  "name": "reagent",
+  "description": "Remote-controllable coding harness: drives a work item through investigate -> plan approval -> execute, with human gates answerable from your phone via the reagent bridge.",
+  "version": "0.1.0"
+}

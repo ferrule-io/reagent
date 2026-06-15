@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_reagent_reagent-bridge__register_work_item",
+      "mcp__plugin_reagent_reagent-bridge__report_status",
+      "mcp__plugin_reagent_reagent-bridge__await_decision",
+      "mcp__plugin_reagent_reagent-bridge__complete_work_item"
+    ]
+  }
+}
