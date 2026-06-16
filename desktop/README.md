@@ -1,19 +1,17 @@
 # Reagent Desktop
 
-Electron menu-bar app that wraps the reagent bridge server. On launch it forks `bridge/dist/index.js` as a child process, supervises it (auto-restart on crash), and places a tray icon in the macOS menu bar. No browser is needed to reach the web UI — clicking "Open Web UI" opens `http://localhost:4319/` in the default browser.
+Electron menu-bar app that wraps the reagent bridge server. On launch it forks `bridge/dist/index.js` via Electron's embedded Node runtime as a child process, supervises it (auto-restart on crash), and places a tray icon in the macOS menu bar. No browser is needed to reach the web UI — clicking "Open Web UI" opens `http://localhost:4319/` in the default browser.
 
 ## Prerequisites
 
-1. **`node` on PATH** — the app forks `node bridge/dist/index.js` directly. Bundling a Node runtime is a planned follow-up; for M1 the packaged `.app` relies on `node` being available on `PATH` at runtime.
-
-2. **Bridge built** — the compiled bridge artifact must exist before launching:
+1. **Bridge built** — the compiled bridge artifact must exist before launching:
 
    ```sh
    cd bridge && npm install && npm run build
    # produces bridge/dist/index.js
    ```
 
-3. **Desktop dependencies installed:**
+2. **Desktop dependencies installed:**
 
    ```sh
    cd desktop && npm install
@@ -68,7 +66,6 @@ cd desktop && npm run app:build:all
 - **Code-signing & notarization** — required for distribution outside the App Store on macOS. Needs `CSC_LINK`/`CSC_KEY_PASSWORD` env vars and an `afterSign` notarization hook in `electron-builder.yml`.
 - **Auto-launch at login** — use `app.setLoginItemSettings({ openAtLogin: true })` or the `auto-launch` npm package.
 - **Auto-update** — integrate `electron-updater` (ships with electron-builder) once a release server/S3 bucket is in place.
-- **Bundled Node runtime** — for a zero-dependency packaged app, ship a node binary via `extraResources` or use `pkg`; trades app size for installation simplicity and removes the PATH requirement.
 - **Windows & Linux binaries** — `electron-builder.yml` already declares win (NSIS) and linux (AppImage + deb) targets; run `npm run app:build:all` once those targets are smoke-tested and signing is arranged.
 
 ## See also
