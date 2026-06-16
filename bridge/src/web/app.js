@@ -283,6 +283,12 @@ function renderJobPage(id) {
       unitTitle.textContent = unit.title;
       li.appendChild(unitTitle);
 
+      const status = deriveUnitStatus(unit, it.log || []);
+      const statusBadge = document.createElement("span");
+      statusBadge.className = `unit-status status-${status}`;
+      statusBadge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+      li.appendChild(statusBadge);
+
       if (unit.scope && unit.scope.length > 0) {
         const scopeEl = document.createElement("div");
         scopeEl.className = "unit-scope";
@@ -443,6 +449,59 @@ function formatTs(iso) {
 }
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Derive the display status of a single plan unit by scanning the work item's
+ * activity log for lines of the form "unit <unitId>: ...".
+ *
+ * Precedence (last relevant line wins):
+ *   "unit <id>: review PASS"  → "passed"
+ *   "unit <id>: review FAIL"  → "failed"
+ *   any other "unit <id>: …"  → "running"  (e.g. "execution complete")
+ *   no matching line           → "pending"
+ *
+ * The unit id is taken from unit.id when present, otherwise derived from
+ * unit.planDocPath (basename without extension, e.g. "u1").
+ *
+ * @param {{ id?: string, planDocPath?: string }} unit
+ * @param {Array<{ at: string, line: string }>} log
+ * @returns {"pending"|"running"|"passed"|"failed"}
+ */
+function deriveUnitStatus(unit, log) {
+  try {
+    // Resolve the unit identifier
+    let unitId = unit && unit.id ? String(unit.id) : null;
+    if (!unitId && unit && unit.planDocPath) {
+      const base = String(unit.planDocPath).split("/").pop() || "";
+      unitId = base.replace(/\.[^.]+$/, ""); // strip extension
+    }
+    if (!unitId) return "pending";
+
+    // Build a pattern: "unit <id>:" (case-insensitive)
+    const prefix = `unit ${unitId.toLowerCase()}:`;
+
+    let status = "pending";
+    for (const entry of log) {
+      if (!entry || !entry.line) continue;
+      const l = entry.line.toLowerCase();
+      if (!l.includes(prefix)) continue;
+
+      // Check for verdict first
+      if (/review pass/.test(l)) {
+        status = "passed";
+      } else if (/review fail/.test(l)) {
+        status = "failed";
+      } else {
+        // Any other "unit <id>: …" line means it is at least running,
+        // but don't downgrade a terminal verdict already recorded.
+        if (status === "pending") status = "running";
+      }
+    }
+    return status;
+  } catch (_) {
+    return "pending";
+  }
+}
 
 /**
  * Classify an activity-log line into a subagent role and optional verdict.
