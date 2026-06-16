@@ -30,8 +30,30 @@ Re-sync after editing plugin files: `/plugin marketplace update reagent` + `/rel
 
 ## How it works
 
+### Pipeline
+
+```
+INVESTIGATE → PROPOSE → PLAN (planner) → plan-review → per-unit [ execute → code-review ] → DONE
+```
+
+INVESTIGATE and PROPOSE run in the orchestrating session. After the human approves the proposal at the gate, the remaining stages all run as **subagents** — the orchestrator delegates and never implements inline.
+
+### Three subagents
+
+- **`reagent-planner`** (`agents/reagent-planner.md`) — decomposes the approved direction into mutually-exclusive units of work and writes `docs/reagent/<id>/<unitId>.md` plan docs. Runs during PLAN.
+- **`reagent-executor`** (`agents/reagent-executor.md`) — implements a single unit on the item's branch (the stored human-readable slug, e.g. `reagent/<slug>`), commits locally, and reports status. Confined to the unit's declared `scope`. Runs once per unit during EXECUTE.
+- **`reagent-reviewer`** (`agents/reagent-reviewer.md`) — adversarial, read-only critic that runs in a **fresh context** with no memory of how the work was produced. It runs in two modes:
+  - *plan-review* — checks that each unit's scope is grounded in real repo paths, units are mutually exclusive, the approach is feasible, and acceptance criteria are concrete.
+  - *code-review* — diffs the unit's commit(s) and validates the **ALL-and-ONLY** criterion: all specified changes are present and no out-of-scope edits slipped in.
+
+The fresh-context, read-only design follows the adversarial code review pattern: https://asdlc.io/patterns/adversarial-code-review/
+
+### Scope guards
+
 - **State + the human gate live in the bridge.** The skill calls `register_work_item`, `report_status`, `await_decision` (polled — an unattended wait answered from the phone), and `complete_work_item`.
-- **Scope guard:** EXECUTE runs in the `reagent-executor` subagent, whose `tools:` allow-list confines it to read/edit/git within the target repo (no web, no pushing). Per-unit path scoping + parallel worktrees come in a later milestone.
+- **PLAN is subagent-delegated.** The orchestrator invokes `reagent-planner`; it never decomposes inline.
+- **EXECUTE is subagent-delegated.** The orchestrator invokes `reagent-executor` per unit; each executor instance is confined by its `tools:` allow-list (read/edit/git within the target repo — no web, no pushing) and by the unit's declared scope.
+- **REVIEW is adversarial and bounded.** Plan-review allows up to 2 replan rounds; per-unit code-review allows up to 2 executor retries. If still failing after the limit, the pipeline calls `complete_work_item({ phase: "FAILED" })` and stops — it never silently proceeds.
 - **MCP tool names** follow `mcp__plugin_reagent_reagent-bridge__<tool>`; they're pre-authorized in `.claude/settings.json` so the workflow runs without prompts.
 
 ## Headless launch (Plan 3 — phone-driven, validated)

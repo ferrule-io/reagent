@@ -5,7 +5,7 @@ description: Drive a coding work item through the reagent pipeline — investiga
 
 # reagent pipeline
 
-You orchestrate one work item through: INTAKE → INVESTIGATE → PROPOSE (human gate, loops on revise) → PLAN (decompose) → EXECUTE → DONE.
+You orchestrate one work item through: INTAKE → INVESTIGATE → PROPOSE (human gate, loops on revise) → PLAN (delegated + reviewed) → EXECUTE (per-unit, delegated + reviewed) → DONE.
 All state and the human approval gate live in the **reagent bridge**, reached via the `reagent-bridge` MCP tools
 (`mcp__plugin_reagent_reagent-bridge__*`). The bridge must be running at http://localhost:4319.
 
@@ -41,21 +41,83 @@ Then branch on the decision result:
 
 **Async mode**: call `await_decision` exactly once per resume invocation; exit on pending.
 
-## PLAN (shared)
-Take the approved investigation findings (and any accumulated `feedback[]` from revise rounds) and decompose into **units of work**. Each unit MUST be mutually exclusive — non-overlapping file scope (`scope: string[]` of path globs). For each unit:
-1. Write a plan document to `docs/reagent/<id>/<unitId>.md` in the **target repo** (create dirs as needed). The plan doc must state: goal, scope, approach, and acceptance criteria.
-2. Record `{ id, title, scope, planDocPath: "docs/reagent/<id>/<unitId>.md", dependsOn: [] }`.
+## PLAN (shared, delegated + adversarial review)
 
-Then call:
+### Step 1 — Delegate decomposition to `reagent-planner`
+Invoke the `reagent-planner` subagent (Agent tool / `@agent-reagent-planner`) passing:
+- `id`, `repoPath`, the approved `plan` (diagnosis + direction)
+- `feedback[]` — accumulated revise-round notes (empty array on first call)
+
+The planner explores the repo, writes `docs/reagent/<id>/<unitId>.md` for each unit, and returns a `units` array:
+```json
+[
+  { "id": "u1", "title": "...", "scope": ["path/to/file"], "planDocPath": "docs/reagent/<id>/u1.md", "dependsOn": [] },
+  ...
+]
+```
+Record the units on the bridge:
 ```
 report_status({ id, phase: "PLAN", line: "plan decomposed into N units", units: [...] })
 ```
 
-## EXECUTE (shared, delegated + scoped)
-Fetch the item's `branch` field: `curl -s http://localhost:4319/api/items/<id>` (same call used in `resume`). Pass that stored branch value to the `reagent-executor` subagent (Agent tool / `@agent-reagent-executor`) along with the work item `id`, the `repoPath`, and the approved `plan`/`units`. The subagent makes changes on that branch, commits locally, and reports status.
-When it finishes, call `complete_work_item({ id, phase: "DONE" })` and report the branch + a one-line summary.
-(Per-unit parallel execution via worktrees is a future milestone; for now a single-pass execution proceeds over all units.)
-Do not push — PRs are a later milestone.
+### Step 2 — Plan review (adversarial, bounded)
+Invoke the `reagent-reviewer` subagent (Agent tool / `@agent-reagent-reviewer`) in **plan-review** mode, passing:
+- `id`, `repoPath`, `mode: "plan-review"`, the `units` array, and the plan doc paths.
+
+Parse the reviewer's final lines for `VERDICT: PASS` or `VERDICT: FAIL`.
+
+- **VERDICT: PASS** → proceed to **EXECUTE**.
+- **VERDICT: FAIL** → extract the violations list and re-invoke `reagent-planner` with `feedback[]` containing the violations. Re-run plan review on the revised plan. Repeat up to **2 rounds total**. If still failing after 2 rounds, call `complete_work_item({ id, phase: "FAILED" })`, report the violations, and stop.
+
+Report each review outcome:
+```
+report_status({ id, phase: "PLAN", line: "plan review: PASS" })
+// or
+report_status({ id, phase: "PLAN", line: "plan review: FAIL — <violation summary>" })
+```
+
+## EXECUTE (shared, per-unit delegated + adversarial review)
+
+First fetch the item's `branch` field: `curl -s http://localhost:4319/api/items/<id>` (same call used in `resume`). Use that stored branch value everywhere below — pass it to every subagent as `branch` rather than constructing `reagent/<id>` literally.
+
+For **each unit** in the approved units array (in dependency order):
+
+### Step 1 — Delegate execution to `reagent-executor`
+Invoke the `reagent-executor` subagent (Agent tool / `@agent-reagent-executor`) passing:
+- `id`, `repoPath`, the approved `plan` (diagnosis + direction), the item's `branch`
+- `unit` — the unit object `{ id, title, scope, planDocPath }`
+- `violations[]` — empty on first invocation; populated on retry after a review FAIL
+
+The executor makes changes on the branch, commits locally, and reports status.
+
+```
+report_status({ id, phase: "EXECUTE", line: "unit <unitId>: execution complete", branch: "<the item branch>" })
+```
+
+### Step 2 — Code review (adversarial, bounded, per unit)
+Invoke the `reagent-reviewer` subagent (Agent tool / `@agent-reagent-reviewer`) in **code-review** mode, passing:
+- `id`, `repoPath`, `mode: "code-review"`, the `unit` object, `branch: "<the item branch>"`
+
+The reviewer diffs the unit's commit(s) and checks the ALL-and-ONLY criterion (all specified changes present, no out-of-scope changes).
+
+Parse the reviewer's final lines for `VERDICT: PASS` or `VERDICT: FAIL`.
+
+- **VERDICT: PASS** → report and continue to the next unit.
+- **VERDICT: FAIL** → extract the violations list and re-invoke `reagent-executor` for the **same unit** with `violations[]`. Re-run code review on the updated commit. Repeat up to **2 retries total**. If still failing after 2 retries, call `complete_work_item({ id, phase: "FAILED" })`, report the violations, and **stop** (do not silently proceed to the next unit).
+
+Report each step:
+```
+report_status({ id, phase: "EXECUTE", line: "unit <unitId>: review PASS", branch: "<the item branch>" })
+// or
+report_status({ id, phase: "EXECUTE", line: "unit <unitId>: review FAIL — <violation summary>", branch: "<the item branch>" })
+```
+
+### Completion
+When all units pass code review:
+```
+complete_work_item({ id, phase: "DONE" })
+```
+Report the branch name and a one-line summary. Do not push.
 
 ---
 
@@ -97,13 +159,17 @@ Do not push — PRs are a later milestone.
      - `revise` → incorporate `decision.note` from `pendingCheckpoint.decision`, regenerate proposal incorporating existing `feedback[]`, call `report_status({ id, phase: "PROPOSE", proposal })`, then call `await_decision` **once**; pending → end your turn; decided → handle.
      - `reject` → `complete_work_item({ id, phase: "REJECTED" })`.
    - `phase` PLAN (in progress, no units yet) → run **PLAN** (shared step), then **EXECUTE**.
-   - `phase` EXECUTE (in progress) → **EXECUTE** (shared step) on the item's `branch` (already fetched from the API response; the executor is idempotent on its own branch).
+   - `phase` EXECUTE (in progress) → **EXECUTE** (shared step) on the item's `branch` (already fetched from the API response), re-entering the per-unit loop idempotently: skip units whose code review already passed (check existing commits on the branch), then continue with the next pending unit.
    - `pendingCheckpoint` present but **undecided** → call `await_decision({ id, prompt: pendingCheckpoint.prompt })` **once**; pending → end your turn; decided → handle as above.
    - `phase` INVESTIGATE with no plan → run **INVESTIGATE**, then open the gate as in `start-async` step 3 (call once, exit if pending).
    - `phase` PROPOSE with no pending checkpoint (e.g. after revise was processed) → regenerate proposal (using accumulated `feedback[]`), `report_status`, call `await_decision` once, exit if pending.
 
 ## Guardrails
-- INVESTIGATE never edits. Only EXECUTE (via the scoped subagent) edits, only on the item's `branch`, never pushing.
+- INVESTIGATE never edits. Only EXECUTE (via the scoped `reagent-executor` subagent) edits, only on the item's `branch`, never pushing.
+- **All three stages — PLAN, EXECUTE, and REVIEW — run as subagents** (Agent tool). The orchestrator delegates; it never decomposes or implements inline.
+- **The reviewer (`reagent-reviewer`) is read-only and runs in a fresh context** — it has no memory of how the work was produced, providing independent adversarial verification. It never edits files.
+- **Review verdicts are PASS or FAIL with a violations list.** A PASS means no violations were found. A FAIL includes precise citations (file, line, criterion) for each violation.
+- **FAIL loops are bounded:** plan-review allows up to 2 replan rounds; per-unit code-review allows up to 2 executor retries. If still failing after the limit, call `complete_work_item({ id, phase: "FAILED" })` and stop — do not silently proceed.
 - Thread the work item `id` through every bridge call.
 - Keep `report_status` lines short and human-readable — they show up live in the bridge UI.
 - **Async mode (`start-async`/`resume`) is short-lived: do exactly one step (open the gate, or execute), then end your turn. Never poll in async mode — the bridge re-launches you on the human's decision.**

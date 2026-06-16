@@ -10,17 +10,17 @@ reagent lets you kick off and approve coding work from your phone. You describe 
 
 reagent has two halves:
 
-**Plugin** (this repo root) — a Claude Code plugin loaded into any Claude Code session. It drives a work item through the pipeline using a skill (`skills/reagent-pipeline`), a scoped executor subagent (`agents/reagent-executor.md`), and slash commands (`commands/`). It talks to the bridge over MCP-over-HTTP.
+**Plugin** (this repo root) — a Claude Code plugin loaded into any Claude Code session. It drives a work item through the pipeline using a skill (`skills/reagent-pipeline`), three subagents (`agents/`), and slash commands (`commands/`). It talks to the bridge over MCP-over-HTTP.
 
 **Bridge** (`bridge/`) — an always-on Node/TypeScript hub that holds per-item state and mediates the human gate. It serves HTTP + a PWA + MCP on `:4319`. State is durable (YAML per item); the bridge can be restarted and will reconstruct open items from disk.
 
-**Pipeline:** each work item moves through four phases:
+**Pipeline:** each work item moves through these phases:
 
 ```
-INVESTIGATE  →  PROPOSE  →  PLAN  →  EXECUTE
+INVESTIGATE → PROPOSE → PLAN (planner) → plan-review → per-unit [ execute → code-review ] → DONE
 ```
 
-INVESTIGATE and PROPOSE run autonomously. After PROPOSE, the bridge opens an **approval gate** — you see the proposal in the PWA on your phone and Approve or Reject. On approval, the PLAN and EXECUTE phases run and commit the result on a `reagent/<id>` branch.
+INVESTIGATE and PROPOSE run in the orchestrating session. After PROPOSE, the bridge opens an **approval gate** — you see the proposal in the PWA on your phone and Approve or Reject. On approval, PLAN, EXECUTE, and all review steps run as **subagents**: a `reagent-planner` decomposes the work, a `reagent-executor` implements each unit on the item's branch, and an adversarial `reagent-reviewer` validates each step in a fresh context. See [docs/PLUGIN.md](docs/PLUGIN.md) for full detail on the subagents and review loop.
 
 ## Quickstart
 
@@ -53,7 +53,7 @@ In a Claude Code session:
 /reagent:start <repoPath> <request>
 ```
 
-The session investigates `repoPath`, proposes a direction, and opens an approval gate. Approve from the bridge UI (locally or on your phone); reagent executes and commits on `reagent/<id>`.
+The session investigates `repoPath`, proposes a direction, and opens an approval gate. Approve from the bridge UI (locally or on your phone); reagent executes and commits on the item's branch (a human-readable slug, e.g. `reagent/<slug>`).
 
 Other commands:
 
@@ -65,8 +65,8 @@ Other commands:
 ```
 .claude-plugin/   plugin.json + marketplace.json (plugin identity)
 .mcp.json         wires the session to the bridge MCP endpoint
-skills/           reagent-pipeline skill (INVESTIGATE→PROPOSE→PLAN→EXECUTE)
-agents/           reagent-executor subagent (scoped: read/edit/git only)
+skills/           reagent-pipeline skill (orchestrator: INVESTIGATE→PROPOSE→PLAN→EXECUTE)
+agents/           reagent-planner, reagent-executor, reagent-reviewer subagents
 commands/         /reagent:start, :ping, :resume, :version
 bridge/           always-on hub (HTTP + PWA + MCP on :4319)
 docs/             PLUGIN.md, bridge details, work item plans
