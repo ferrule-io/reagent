@@ -1,0 +1,60 @@
+name: Package Desktop
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  package-mac:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            bridge/package-lock.json
+            desktop/package-lock.json
+
+      # Step 1: Install and compile the bridge
+      - name: Install bridge deps
+        working-directory: bridge
+        run: npm ci
+
+      - name: Build bridge
+        working-directory: bridge
+        run: npm run build
+
+      # Step 2: Slim the bridge — remove devDependencies before bundling
+      - name: Prune bridge dev deps
+        working-directory: bridge
+        run: npm prune --omit=dev
+
+      # Step 3: Install and compile the Electron main-process TypeScript
+      - name: Install desktop deps
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build desktop
+        working-directory: desktop
+        run: npm run build
+
+      # Step 4: Package — both macOS architectures; never publish to a registry
+      - name: Package macOS (arm64 + x64)
+        working-directory: desktop
+        run: npx electron-builder --mac --x64 --arm64 --publish never
+
+      # Step 5: Upload all .dmg and .zip files produced under desktop/out
+      - name: Upload macOS installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: reagent-mac
+          path: |
+            desktop/out/*.dmg
+            desktop/out/*.zip
+          if-no-files-found: error
