@@ -207,6 +207,10 @@ function renderJobPage(id) {
   // Phase stepper
   main.appendChild(buildStepper(it.phase));
 
+  // Current-activity banner (derived from most recent log line)
+  const banner = buildActivityBanner(it);
+  if (banner) main.appendChild(banner);
+
   // Labeled fields
   const fields = document.createElement("div");
   fields.className = "job-fields";
@@ -340,11 +344,16 @@ function renderJobPage(id) {
       const ts = document.createElement("span");
       ts.className = "log-ts";
       ts.textContent = formatTs(entry.at);
+      const { role, verdict } = classifyLogLine(entry.line);
+      const badge = roleBadgeEl(role);
       const line = document.createElement("span");
       line.className = "log-line";
       line.textContent = entry.line;
+      const pill = verdictPillEl(verdict);
+      if (badge) li.appendChild(badge);
       li.appendChild(ts);
       li.appendChild(line);
+      if (pill) li.appendChild(pill);
       logList.appendChild(li);
     });
     logSection.appendChild(logList);
@@ -434,6 +443,119 @@ function formatTs(iso) {
 }
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Classify an activity-log line into a subagent role and optional verdict.
+ * Returns { role: "planner"|"executor"|"reviewer"|"orchestrator"|null,
+ *           verdict: "pass"|"fail"|null }.
+ */
+function classifyLogLine(line) {
+  if (!line) return { role: null, verdict: null };
+  const l = line.toLowerCase();
+
+  // Reviewer — match first so "unit <id>: review PASS/FAIL" is captured here
+  // rather than falling into executor patterns.
+  if (
+    l.includes("review:") ||
+    l.includes("plan review:") ||
+    /review (pass|fail)/.test(l) ||
+    /unit [^:]+: review/.test(l)
+  ) {
+    const verdict = /\bpass\b/.test(l) ? "pass" : /\bfail\b/.test(l) ? "fail" : null;
+    return { role: "reviewer", verdict };
+  }
+
+  // Planner
+  if (
+    l.includes("units decomposed") ||
+    l.includes("plan decomposed") ||
+    l.includes("decomposed into") ||
+    l.includes("plan decomposed into")
+  ) {
+    return { role: "planner", verdict: null };
+  }
+
+  // Executor — conservative: only match explicit executor signals
+  if (
+    /unit [^:]+: execution complete/.test(l) ||
+    l.includes("executing unit") ||
+    l.includes("execution complete")
+  ) {
+    return { role: "executor", verdict: null };
+  }
+
+  // Orchestrator — explicit orchestration verbs
+  if (
+    l.includes("approved") ||
+    l.includes("starting investigation") ||
+    l.includes("proposal ready") ||
+    l.includes("delegating") ||
+    l.includes("approved — delegating")
+  ) {
+    return { role: "orchestrator", verdict: null };
+  }
+
+  return { role: null, verdict: null };
+}
+
+/**
+ * Return a role badge element, or null when role is null.
+ */
+function roleBadgeEl(role) {
+  if (!role) return null;
+  const span = document.createElement("span");
+  span.className = `role-badge role-${role}`;
+  span.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+  return span;
+}
+
+/**
+ * Return a verdict pill element ("PASS"/"FAIL"), or null when verdict is null.
+ */
+function verdictPillEl(verdict) {
+  if (!verdict) return null;
+  const span = document.createElement("span");
+  span.className = `verdict-pill verdict-${verdict}`;
+  span.textContent = verdict === "pass" ? "PASS" : "FAIL";
+  return span;
+}
+
+/**
+ * Build the current-activity banner from the most recent log line.
+ * Returns a div.activity-banner element, or null when there is no log.
+ * Uses the .idle variant for terminal/no-log states.
+ */
+function buildActivityBanner(it) {
+  const log = it.log || [];
+  const isTerminal = it.phase === "DONE" || TERMINAL_ERROR.includes(it.phase);
+
+  const banner = document.createElement("div");
+  banner.className = "activity-banner";
+
+  if (log.length === 0 || isTerminal) {
+    banner.classList.add("idle");
+    const label = document.createElement("span");
+    label.className = "activity-banner-label";
+    label.textContent = isTerminal ? it.phase : "Idle";
+    banner.appendChild(label);
+    return banner;
+  }
+
+  const lastEntry = log[log.length - 1];
+  const { role } = classifyLogLine(lastEntry.line);
+
+  const label = document.createElement("span");
+  label.className = "activity-banner-label";
+  label.textContent = role ? role.charAt(0).toUpperCase() + role.slice(1) : "Activity";
+  banner.appendChild(label);
+
+  const text = document.createElement("span");
+  text.className = "activity-banner-text";
+  text.textContent = "▶ " + lastEntry.line;
+  banner.appendChild(text);
+
+  return banner;
+}
 
 /** Build a "Comments (optional)" textarea for checkpoint gates. */
 function gateCommentBox() {
