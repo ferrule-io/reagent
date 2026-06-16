@@ -63,7 +63,7 @@ cd desktop && npm run app:build:all
 
 ## Follow-ups (out of scope for M1)
 
-- **Code-signing & notarization** — required for distribution outside the App Store on macOS. Needs `CSC_LINK`/`CSC_KEY_PASSWORD` env vars and an `afterSign` notarization hook in `electron-builder.yml`.
+- **Code-signing & notarization** — implemented; see [SIGNING.md](SIGNING.md) for the one-time certificate setup steps.
 - **Auto-launch at login** — use `app.setLoginItemSettings({ openAtLogin: true })` or the `auto-launch` npm package.
 - **Auto-update** — integrate `electron-updater` (ships with electron-builder) once a release server/S3 bucket is in place.
 - **Windows & Linux binaries** — `electron-builder.yml` already declares win (NSIS) and linux (AppImage + deb) targets; run `npm run app:build:all` once those targets are smoke-tested and signing is arranged.
