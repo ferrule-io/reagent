@@ -5,7 +5,7 @@ import { resolve, isAbsolute } from "node:path";
 import type { StateStore } from "../state/store.js";
 import type { Registry } from "../registry/registry.js";
 import type { CheckpointStore } from "../checkpoints/checkpoints.js";
-import type { Phase } from "../state/types.js";
+import type { Phase, Unit } from "../state/types.js";
 
 export interface McpDeps {
   store: StateStore;
@@ -15,8 +15,16 @@ export interface McpDeps {
 }
 
 const PHASES = [
-  "INTAKE", "INVESTIGATE", "PLAN_APPROVAL", "EXECUTE", "DONE", "REJECTED", "FAILED",
+  "INTAKE", "INVESTIGATE", "PROPOSE", "PLAN", "EXECUTE", "DONE", "REJECTED", "FAILED",
 ] as const;
+
+const UnitSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  scope: z.array(z.string()),
+  planDocPath: z.string(),
+  dependsOn: z.array(z.string()),
+});
 
 function json(value: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value) }] };
@@ -58,19 +66,23 @@ export function buildMcpServer(deps: McpDeps): McpServer {
   server.registerTool(
     "report_status",
     {
-      description: "Stream a status update for a work item (phase, log line, plan, branch).",
+      description: "Stream a status update for a work item (phase, log line, plan, proposal, units, branch).",
       inputSchema: {
         id: z.string(),
         phase: z.enum(PHASES).optional(),
         line: z.string().optional(),
         plan: z.string().optional(),
+        proposal: z.string().optional(),
+        units: z.array(UnitSchema).optional(),
         branch: z.string().optional(),
       },
     },
-    async ({ id, phase, line, plan, branch }) => {
+    async ({ id, phase, line, plan, proposal, units, branch }) => {
       store.update(id, (it) => {
         if (phase) it.phase = phase as Phase;
         if (plan !== undefined) it.plan = plan;
+        if (proposal !== undefined) it.proposal = proposal;
+        if (units !== undefined) it.units = units as Unit[];
         if (branch !== undefined) it.branch = branch;
         if (line) it.log.push({ at: new Date().toISOString(), line });
       });
@@ -83,43 +95,58 @@ export function buildMcpServer(deps: McpDeps): McpServer {
     "await_decision",
     {
       description:
-        "Open (or continue waiting on) a human approval gate. Returns {status:'pending'} on timeout — call again to keep waiting.",
+        "Open (or continue waiting on) a human approval gate. Returns {status:'pending'} on timeout — call again to keep waiting. On revise, the old gate is cleared and a fresh one opens.",
       inputSchema: { id: z.string(), prompt: z.string() },
     },
     async ({ id, prompt }) => {
       const item = store.get(id);
       if (!item) throw new Error(`work item not found: ${id}`);
 
-      // If a decision was already recorded for the current gate (e.g. the session
-      // crashed after receiving it but before calling complete_work_item), return
-      // it rather than re-opening the gate and re-asking the human.
+      // If a decision was already recorded for the current gate, check the result.
+      // approve/reject → return idempotently (same as before).
+      // revise → the skill is re-proposing: open a FRESH checkpoint, clear the stale one.
       if (item.pendingCheckpoint?.decision) {
-        return json({ status: "decided", decision: item.pendingCheckpoint.decision });
+        const existingResult = item.pendingCheckpoint.decision.result;
+        if (existingResult === "approve" || existingResult === "reject") {
+          return json({ status: "decided", decision: item.pendingCheckpoint.decision });
+        }
+        // revise: fall through to open a fresh gate below
       }
 
+      // Check whether we have a pending (undecided) checkpoint we can reuse.
       let cpId = item.pendingCheckpoint?.id;
-      if (!cpId) {
+      const hasUndecidedCheckpoint = cpId && !item.pendingCheckpoint?.decision;
+
+      if (!hasUndecidedCheckpoint) {
+        // Open a fresh checkpoint (either first time, or after a revise)
         cpId = `cp_${randomUUID().slice(0, 8)}`;
         checkpoints.open(id, cpId, prompt);
         store.update(id, (it) => {
-          it.phase = "PLAN_APPROVAL";
+          it.phase = "PROPOSE";
           it.pendingCheckpoint = {
             id: cpId!,
-            kind: "PLAN_APPROVAL",
+            kind: "PROPOSE",
             prompt,
             createdAt: new Date().toISOString(),
           };
         });
         touch(id);
-      } else if (!checkpoints.has(cpId)) {
-        checkpoints.open(id, cpId, item.pendingCheckpoint!.prompt);
+      } else if (!checkpoints.has(cpId!)) {
+        checkpoints.open(id, cpId!, item.pendingCheckpoint!.prompt);
       }
 
-      const res = await checkpoints.awaitDecision(cpId, checkpointPollMs);
+      const res = await checkpoints.awaitDecision(cpId!, checkpointPollMs);
       if (res.status === "decided") {
+        const decidedAt = new Date().toISOString();
         store.update(id, (it) => {
           if (it.pendingCheckpoint) {
-            it.pendingCheckpoint.decision = { ...res.decision, decidedAt: new Date().toISOString() };
+            it.pendingCheckpoint.decision = { ...res.decision, decidedAt };
+          }
+          // On revise: append feedback and keep phase as PROPOSE
+          if (res.decision.result === "revise") {
+            if (!it.feedback) it.feedback = [];
+            it.feedback.push({ at: decidedAt, note: res.decision.note ?? "" });
+            it.phase = "PROPOSE";
           }
         });
         touch(id);

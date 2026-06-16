@@ -69,9 +69,9 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
 
   app.post("/api/items/:id/decision", async (req, reply) => {
     const { id } = req.params as { id: string };
-    const { result, note } = req.body as { result: "approve" | "reject"; note?: string };
-    if (result !== "approve" && result !== "reject") {
-      return reply.code(400).send({ error: "result must be 'approve' or 'reject'" });
+    const { result, note } = req.body as { result: "approve" | "reject" | "revise"; note?: string };
+    if (result !== "approve" && result !== "reject" && result !== "revise") {
+      return reply.code(400).send({ error: "result must be 'approve', 'reject', or 'revise'" });
     }
     const item = store.get(id);
     const cpId = item?.pendingCheckpoint?.id;
@@ -88,6 +88,12 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
       if (it.pendingCheckpoint) {
         it.pendingCheckpoint.decision = { ...decision, decidedAt };
       }
+      // On revise: append feedback and keep phase as PROPOSE
+      if (result === "revise") {
+        if (!it.feedback) it.feedback = [];
+        it.feedback.push({ at: decidedAt, note: note ?? "" });
+        it.phase = "PROPOSE";
+      }
     });
     // Wake any in-flight awaitDecision calls (terminal-origin sessions polling).
     if (checkpoints.has(cpId)) {
@@ -95,6 +101,7 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
     }
     // Phone-origin work has no live session waiting — re-launch one to continue.
     // Terminal-origin work has a live polling session that will continue itself.
+    // For revise, re-launch so the skill can regenerate the proposal.
     if (item.origin === "phone") {
       launcher?.resume({ id, repoPath: item.repoPath });
     }

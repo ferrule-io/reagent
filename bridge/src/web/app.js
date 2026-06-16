@@ -174,7 +174,7 @@ function card(it) {
 
 // ─── Job page ───────────────────────────────────────────────────────────────
 
-const PIPELINE_STAGES = ["INTAKE", "INVESTIGATE", "PLAN_APPROVAL", "EXECUTE", "DONE"];
+const PIPELINE_STAGES = ["INTAKE", "INVESTIGATE", "PROPOSE", "PLAN", "EXECUTE", "DONE"];
 const TERMINAL_ERROR = ["REJECTED", "FAILED"];
 
 function renderJobPage(id) {
@@ -214,21 +214,99 @@ function renderJobPage(id) {
   fields.appendChild(labeledField("Request", escapeHtml(it.request), "pre"));
   fields.appendChild(labeledField("Repo", escapeHtml(it.repoPath), "code"));
   if (it.branch) fields.appendChild(labeledField("Branch", escapeHtml(it.branch), "code"));
-  if (it.plan) {
+
+  // Show proposal (preferred) or legacy plan as markdown
+  const proposalText = it.proposal || it.plan;
+  if (proposalText) {
     const planWrap = document.createElement("div");
     planWrap.className = "field";
     const planLabel = document.createElement("div");
     planLabel.className = "field-label";
-    planLabel.textContent = "Plan";
+    planLabel.textContent = it.proposal ? "Proposal" : "Plan";
     const planVal = document.createElement("div");
     planVal.className = "field-value markdown";
-    planVal.innerHTML = renderMarkdown(it.plan);
+    planVal.innerHTML = renderMarkdown(proposalText);
     planWrap.appendChild(planLabel);
     planWrap.appendChild(planVal);
     fields.appendChild(planWrap);
   }
 
   main.appendChild(fields);
+
+  // Revise feedback trail
+  if ((it.feedback || []).length > 0) {
+    const feedbackSection = document.createElement("div");
+    feedbackSection.className = "feedback-section";
+    const feedbackTitle = document.createElement("div");
+    feedbackTitle.className = "feedback-title";
+    feedbackTitle.textContent = "Revision feedback";
+    feedbackSection.appendChild(feedbackTitle);
+    const feedbackList = document.createElement("ol");
+    feedbackList.className = "feedback-list";
+    for (const fb of it.feedback) {
+      const li = document.createElement("li");
+      li.className = "feedback-entry";
+      const ts = document.createElement("span");
+      ts.className = "feedback-ts";
+      ts.textContent = formatTs(fb.at);
+      const note = document.createElement("span");
+      note.className = "feedback-note";
+      note.textContent = fb.note;
+      li.appendChild(ts);
+      li.appendChild(note);
+      feedbackList.appendChild(li);
+    }
+    feedbackSection.appendChild(feedbackList);
+    main.appendChild(feedbackSection);
+  }
+
+  // Units of work
+  if ((it.units || []).length > 0) {
+    const unitsSection = document.createElement("div");
+    unitsSection.className = "units-section";
+    const unitsTitle = document.createElement("div");
+    unitsTitle.className = "units-title";
+    unitsTitle.textContent = "Units of work";
+    unitsSection.appendChild(unitsTitle);
+    const unitsList = document.createElement("ul");
+    unitsList.className = "units-list";
+    for (const unit of it.units) {
+      const li = document.createElement("li");
+      li.className = "unit-item";
+
+      const unitTitle = document.createElement("strong");
+      unitTitle.className = "unit-title";
+      unitTitle.textContent = unit.title;
+      li.appendChild(unitTitle);
+
+      if (unit.scope && unit.scope.length > 0) {
+        const scopeEl = document.createElement("div");
+        scopeEl.className = "unit-scope";
+        scopeEl.textContent = "Scope: " + unit.scope.join(", ");
+        li.appendChild(scopeEl);
+      }
+
+      if (unit.dependsOn && unit.dependsOn.length > 0) {
+        const depsEl = document.createElement("div");
+        depsEl.className = "unit-deps";
+        depsEl.textContent = "Depends on: " + unit.dependsOn.join(", ");
+        li.appendChild(depsEl);
+      }
+
+      if (unit.planDocPath) {
+        const docEl = document.createElement("div");
+        docEl.className = "unit-doc";
+        const docCode = document.createElement("code");
+        docCode.textContent = unit.planDocPath;
+        docEl.appendChild(docCode);
+        li.appendChild(docEl);
+      }
+
+      unitsList.appendChild(li);
+    }
+    unitsSection.appendChild(unitsList);
+    main.appendChild(unitsSection);
+  }
 
   // Checkpoint gate
   const gate = it.pendingCheckpoint && !it.pendingCheckpoint.decision;
@@ -320,7 +398,8 @@ function stageLabel(stage) {
   const map = {
     INTAKE: "Intake",
     INVESTIGATE: "Investigate",
-    PLAN_APPROVAL: "Plan",
+    PROPOSE: "Propose",
+    PLAN: "Plan",
     EXECUTE: "Execute",
     DONE: "Done",
     REJECTED: "Rejected",
@@ -364,8 +443,8 @@ function gateCommentBox() {
 }
 
 /**
- * Build Approve/Reject buttons. Both read the shared textarea at click time
- * and pass its value as the note to decide().
+ * Build Approve / Revise / Reject buttons. All three read the shared textarea
+ * at click time and pass its value as the note. Revise posts result:'revise'.
  */
 function decisionButtons(id, textarea) {
   const wrap = document.createElement("div");
@@ -374,11 +453,15 @@ function decisionButtons(id, textarea) {
     const note = textarea.value.trim() || undefined;
     decide(id, "approve", note);
   });
+  const revise = button("Revise", "revise", () => {
+    const note = textarea.value.trim() || undefined;
+    decide(id, "revise", note);
+  });
   const reject = button("Reject", "reject", () => {
     const note = textarea.value.trim() || undefined;
     decide(id, "reject", note);
   });
-  wrap.append(approve, " ", reject);
+  wrap.append(approve, " ", revise, " ", reject);
   return wrap;
 }
 

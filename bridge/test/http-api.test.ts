@@ -53,8 +53,8 @@ describe("HTTP API", () => {
     store.create({ id: "b", title: "B", repoPath: "/r", request: "q", origin: "terminal" });
     cps.open("b", "cp_b", "approve?");
     store.update("b", (it) => {
-      it.phase = "PLAN_APPROVAL";
-      it.pendingCheckpoint = { id: "cp_b", kind: "PLAN_APPROVAL", prompt: "approve?", createdAt: new Date().toISOString() };
+      it.phase = "PROPOSE";
+      it.pendingCheckpoint = { id: "cp_b", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
     });
     reg.upsert(store.get("b")!);
 
@@ -74,8 +74,8 @@ describe("HTTP API", () => {
     store.create({ id: "d", title: "D", repoPath: "/r", request: "q", origin: "terminal" });
     cps.open("d", "cp_d", "approve?");
     store.update("d", (it) => {
-      it.phase = "PLAN_APPROVAL";
-      it.pendingCheckpoint = { id: "cp_d", kind: "PLAN_APPROVAL", prompt: "approve?", createdAt: new Date().toISOString() };
+      it.phase = "PROPOSE";
+      it.pendingCheckpoint = { id: "cp_d", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
     });
     reg.upsert(store.get("d")!);
 
@@ -101,6 +101,46 @@ describe("HTTP API", () => {
       payload: { result: "approve" },
     });
     expect(res.statusCode).toBe(409);
+  });
+
+  it("accepts revise decision and appends to feedback trail", async () => {
+    store.create({ id: "e", title: "E", repoPath: "/r", request: "q", origin: "terminal" });
+    cps.open("e", "cp_e", "approve?");
+    store.update("e", (it) => {
+      it.phase = "PROPOSE";
+      it.pendingCheckpoint = { id: "cp_e", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
+    });
+    reg.upsert(store.get("e")!);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/items/e/decision",
+      payload: { result: "revise", note: "needs more detail" },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const stored = store.get("e");
+    expect(stored?.pendingCheckpoint?.decision?.result).toBe("revise");
+    expect(stored?.feedback).toHaveLength(1);
+    expect(stored?.feedback![0].note).toBe("needs more detail");
+    expect(stored?.phase).toBe("PROPOSE");
+  });
+
+  it("returns 400 for an invalid decision result", async () => {
+    store.create({ id: "f", title: "F", repoPath: "/r", request: "q", origin: "terminal" });
+    cps.open("f", "cp_f", "approve?");
+    store.update("f", (it) => {
+      it.phase = "PROPOSE";
+      it.pendingCheckpoint = { id: "cp_f", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
+    });
+    reg.upsert(store.get("f")!);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/items/f/decision",
+      payload: { result: "maybe" },
+    });
+    expect(res.statusCode).toBe(400);
   });
 });
 
@@ -245,8 +285,8 @@ describe("HTTP API — launcher wiring", () => {
     store.create({ id: "p", title: "P", repoPath: "/tmp/repo", request: "q", origin: "phone" });
     cps.open("p", "cp_p", "approve?");
     store.update("p", (it) => {
-      it.phase = "PLAN_APPROVAL";
-      it.pendingCheckpoint = { id: "cp_p", kind: "PLAN_APPROVAL", prompt: "approve?", createdAt: new Date().toISOString() };
+      it.phase = "PROPOSE";
+      it.pendingCheckpoint = { id: "cp_p", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
     });
     reg.upsert(store.get("p")!);
 
@@ -254,12 +294,25 @@ describe("HTTP API — launcher wiring", () => {
     expect(launcher.resumes).toEqual([{ id: "p", repoPath: "/tmp/repo" }]);
   });
 
+  it("re-launches resume on revise of a phone item", async () => {
+    store.create({ id: "r", title: "R", repoPath: "/tmp/repo", request: "q", origin: "phone" });
+    cps.open("r", "cp_r", "propose?");
+    store.update("r", (it) => {
+      it.phase = "PROPOSE";
+      it.pendingCheckpoint = { id: "cp_r", kind: "PROPOSE", prompt: "propose?", createdAt: new Date().toISOString() };
+    });
+    reg.upsert(store.get("r")!);
+
+    await app.inject({ method: "POST", url: "/api/items/r/decision", payload: { result: "revise", note: "try again" } });
+    expect(launcher.resumes).toEqual([{ id: "r", repoPath: "/tmp/repo" }]);
+  });
+
   it("does NOT re-launch on approval of a terminal item (its live session continues)", async () => {
     store.create({ id: "t", title: "T", repoPath: "/tmp/repo", request: "q", origin: "terminal" });
     cps.open("t", "cp_t", "approve?");
     store.update("t", (it) => {
-      it.phase = "PLAN_APPROVAL";
-      it.pendingCheckpoint = { id: "cp_t", kind: "PLAN_APPROVAL", prompt: "approve?", createdAt: new Date().toISOString() };
+      it.phase = "PROPOSE";
+      it.pendingCheckpoint = { id: "cp_t", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
     });
     reg.upsert(store.get("t")!);
 
