@@ -11,6 +11,8 @@ export interface CreateInput {
   origin: "terminal" | "phone";
   /** Pre-derived human-readable branch name (e.g. `reagent/<slug>`). */
   branch?: string;
+  /** Pre-assigned git worktree path for concurrent isolation. */
+  worktreePath?: string;
 }
 
 export class StateStore {
@@ -35,6 +37,7 @@ export class StateStore {
       createdAt: now,
       updatedAt: now,
       ...(input.branch !== undefined ? { branch: input.branch } : {}),
+      ...(input.worktreePath !== undefined ? { worktreePath: input.worktreePath } : {}),
     };
     this.write(item);
     return item;

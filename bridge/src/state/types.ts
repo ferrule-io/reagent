@@ -53,6 +53,8 @@ export interface WorkItem {
   units?: Unit[];
   /** Branch the EXECUTE stage works on. */
   branch?: string;
+  /** Absolute path to the git worktree for this item (e.g. ~/.reagent/worktrees/<id>). Assigned alongside branch; torn down on terminal state. */
+  worktreePath?: string;
   /** Pending human gate, if any. */
   pendingCheckpoint?: Checkpoint;
   /** Append-only activity log lines for the UI. */
