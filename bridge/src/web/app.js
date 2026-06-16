@@ -72,10 +72,13 @@ function card(it) {
   }
 
   if (gate) {
-    const prompt = document.createElement("pre");
-    prompt.textContent = it.pendingCheckpoint.prompt;
-    div.appendChild(prompt);
-    div.appendChild(decisionButtons(it.id));
+    const promptEl = document.createElement("div");
+    promptEl.className = "markdown";
+    promptEl.innerHTML = renderMarkdown(it.pendingCheckpoint.prompt);
+    div.appendChild(promptEl);
+    const textarea = gateCommentBox();
+    div.appendChild(textarea);
+    div.appendChild(decisionButtons(it.id, textarea));
   }
 
   return div;
@@ -123,7 +126,19 @@ function renderJobPage(id) {
   fields.appendChild(labeledField("Request", escapeHtml(it.request), "pre"));
   fields.appendChild(labeledField("Repo", escapeHtml(it.repoPath), "code"));
   if (it.branch) fields.appendChild(labeledField("Branch", escapeHtml(it.branch), "code"));
-  if (it.plan) fields.appendChild(labeledField("Plan", escapeHtml(it.plan), "pre"));
+  if (it.plan) {
+    const planWrap = document.createElement("div");
+    planWrap.className = "field";
+    const planLabel = document.createElement("div");
+    planLabel.className = "field-label";
+    planLabel.textContent = "Plan";
+    const planVal = document.createElement("div");
+    planVal.className = "field-value markdown";
+    planVal.innerHTML = renderMarkdown(it.plan);
+    planWrap.appendChild(planLabel);
+    planWrap.appendChild(planVal);
+    fields.appendChild(planWrap);
+  }
 
   main.appendChild(fields);
 
@@ -132,10 +147,13 @@ function renderJobPage(id) {
   if (gate) {
     const gateDiv = document.createElement("div");
     gateDiv.className = "checkpoint-gate";
-    const p = document.createElement("pre");
-    p.textContent = it.pendingCheckpoint.prompt;
-    gateDiv.appendChild(p);
-    gateDiv.appendChild(decisionButtons(it.id));
+    const promptEl = document.createElement("div");
+    promptEl.className = "markdown";
+    promptEl.innerHTML = renderMarkdown(it.pendingCheckpoint.prompt);
+    gateDiv.appendChild(promptEl);
+    const textarea = gateCommentBox();
+    gateDiv.appendChild(textarea);
+    gateDiv.appendChild(decisionButtons(it.id, textarea));
     main.appendChild(gateDiv);
   }
 
@@ -248,12 +266,28 @@ function formatTs(iso) {
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
-function decisionButtons(id) {
+/** Build a "Comments (optional)" textarea for checkpoint gates. */
+function gateCommentBox() {
+  const ta = document.createElement("textarea");
+  ta.className = "gate-comment";
+  ta.placeholder = "Comments (optional)";
+  ta.rows = 3;
+  return ta;
+}
+
+/**
+ * Build Approve/Reject buttons. Both read the shared textarea at click time
+ * and pass its value as the note to decide().
+ */
+function decisionButtons(id, textarea) {
   const wrap = document.createElement("div");
   wrap.className = "decision-buttons";
-  const approve = button("Approve", "approve", () => decide(id, "approve"));
+  const approve = button("Approve", "approve", () => {
+    const note = textarea.value.trim() || undefined;
+    decide(id, "approve", note);
+  });
   const reject = button("Reject", "reject", () => {
-    const note = window.prompt("Why reject? (optional)") || undefined;
+    const note = textarea.value.trim() || undefined;
     decide(id, "reject", note);
   });
   wrap.append(approve, " ", reject);
@@ -276,7 +310,109 @@ async function decide(id, result, note) {
 
 function escapeHtml(s) {
   if (s == null) return "";
-  return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+// ─── Markdown renderer ───────────────────────────────────────────────────────
+// Dependency-free subset: fenced code blocks, headings, bold, italic, inline
+// code, unordered/ordered lists, links, and paragraphs. Always escapes source
+// before applying transforms so no raw HTML can be injected.
+
+function renderMarkdown(src) {
+  if (src == null) return "";
+  const lines = String(src).split("\n");
+  const out = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const raw = lines[i];
+
+    // Fenced code block
+    if (raw.trimStart().startsWith("```")) {
+      const fence = raw.match(/^(`{3,})/)?.[1] ?? "```";
+      const lang = escapeHtml(raw.slice(fence.length).trim());
+      i++;
+      const codeLines = [];
+      while (i < lines.length && !lines[i].trimStart().startsWith(fence)) {
+        codeLines.push(escapeHtml(lines[i]));
+        i++;
+      }
+      i++; // skip closing fence
+      out.push(`<pre class="md-code-block"><code${lang ? ` class="language-${lang}"` : ""}>${codeLines.join("\n")}</code></pre>`);
+      continue;
+    }
+
+    // Blank line — paragraph break
+    if (raw.trim() === "") {
+      i++;
+      continue;
+    }
+
+    // ATX Heading (#–######)
+    const hMatch = raw.match(/^(#{1,6})\s+(.*)/);
+    if (hMatch) {
+      const level = hMatch[1].length;
+      out.push(`<h${level} class="md-h">${inlineMarkdown(hMatch[2])}</h${level}>`);
+      i++;
+      continue;
+    }
+
+    // Unordered list
+    if (/^[-*]\s/.test(raw)) {
+      out.push("<ul class=\"md-ul\">");
+      while (i < lines.length && /^[-*]\s/.test(lines[i])) {
+        out.push(`<li>${inlineMarkdown(lines[i].slice(2))}</li>`);
+        i++;
+      }
+      out.push("</ul>");
+      continue;
+    }
+
+    // Ordered list
+    if (/^\d+\.\s/.test(raw)) {
+      out.push("<ol class=\"md-ol\">");
+      while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
+        out.push(`<li>${inlineMarkdown(lines[i].replace(/^\d+\.\s/, ""))}</li>`);
+        i++;
+      }
+      out.push("</ol>");
+      continue;
+    }
+
+    // Paragraph: collect consecutive non-blank, non-special lines
+    const paraLines = [];
+    while (
+      i < lines.length &&
+      lines[i].trim() !== "" &&
+      !/^(#{1,6}\s|[-*]\s|\d+\.\s|`{3})/.test(lines[i])
+    ) {
+      paraLines.push(inlineMarkdown(lines[i]));
+      i++;
+    }
+    if (paraLines.length > 0) {
+      out.push(`<p class="md-p">${paraLines.join("<br>")}</p>`);
+    }
+  }
+
+  return out.join("\n");
+}
+
+/** Apply inline markdown transforms to an already-safe string (escape first). */
+function inlineMarkdown(raw) {
+  let s = escapeHtml(raw);
+  // Inline code — escape the content but keep the backtick syntax
+  s = s.replace(/`([^`]+)`/g, (_, code) => `<code>${code}</code>`);
+  // Bold (**text** or __text__)
+  s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
+  // Italic (*text* or _text_)
+  s = s.replace(/\*(.+?)\*/g, "<em>$1</em>");
+  s = s.replace(/_(.+?)_/g, "<em>$1</em>");
+  // Links [text](url) — url already HTML-escaped from escapeHtml above
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  return s;
 }
 
 function newWorkForm() {

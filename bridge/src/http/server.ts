@@ -51,10 +51,24 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
     }
     const item = store.get(id);
     const cpId = item?.pendingCheckpoint?.id;
-    if (!item || !cpId || !checkpoints.has(cpId)) {
+    if (!item || !cpId) {
       return reply.code(409).send({ error: "no pending checkpoint" });
     }
-    checkpoints.resolve(cpId, { result, note });
+    const decision = { result, note };
+    const decidedAt = new Date().toISOString();
+    // Persist the decision onto the work item so it survives bridge restarts and
+    // is visible via GET /api/items/:id. The MCP await_decision path also writes
+    // this, but the HTTP route must do it too for phone-origin items whose live
+    // session may have already exited.
+    store.update(id, (it) => {
+      if (it.pendingCheckpoint) {
+        it.pendingCheckpoint.decision = { ...decision, decidedAt };
+      }
+    });
+    // Wake any in-flight awaitDecision calls (terminal-origin sessions polling).
+    if (checkpoints.has(cpId)) {
+      checkpoints.resolve(cpId, decision);
+    }
     // Phone-origin work has no live session waiting — re-launch one to continue.
     // Terminal-origin work has a live polling session that will continue itself.
     if (item.origin === "phone") {

@@ -67,6 +67,29 @@ describe("HTTP API", () => {
     expect(decided.decision.result).toBe("approve");
   });
 
+  it("persists the decision note onto pendingCheckpoint in the store", async () => {
+    store.create({ id: "d", title: "D", repoPath: "/r", request: "q", origin: "terminal" });
+    cps.open("d", "cp_d", "approve?");
+    store.update("d", (it) => {
+      it.phase = "PLAN_APPROVAL";
+      it.pendingCheckpoint = { id: "cp_d", kind: "PLAN_APPROVAL", prompt: "approve?", createdAt: new Date().toISOString() };
+    });
+    reg.upsert(store.get("d")!);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/items/d/decision",
+      payload: { result: "approve", note: "looks good, ship it" },
+    });
+    expect(res.statusCode).toBe(200);
+
+    // The note must be durable in the store, not just in-memory checkpoints.
+    const stored = store.get("d");
+    expect(stored?.pendingCheckpoint?.decision?.result).toBe("approve");
+    expect(stored?.pendingCheckpoint?.decision?.note).toBe("looks good, ship it");
+    expect(stored?.pendingCheckpoint?.decision?.decidedAt).toBeTruthy();
+  });
+
   it("returns 409 when deciding an item with no pending checkpoint", async () => {
     reg.upsert(store.create({ id: "c", title: "C", repoPath: "/r", request: "q", origin: "terminal" }));
     const res = await app.inject({
