@@ -6,16 +6,154 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>reagent</title>
     <style>
+      /* ── Base ── */
       body { font: 15px system-ui, sans-serif; margin: 0; background: #14110f; color: #eee; }
       header { padding: 12px 16px; background: #1f1b18; font-weight: 600; }
       main { padding: 12px 16px; max-width: 720px; margin: 0 auto; }
-      .item { border: 1px solid #3a322c; border-radius: 8px; padding: 12px; margin: 10px 0; }
-      .phase { font-size: 12px; color: #c89; text-transform: uppercase; letter-spacing: .05em; }
-      .gate { background: #2a1f14; border-color: #a96; }
+      pre { white-space: pre-wrap; color: #bbb; font-size: 13px; margin: 6px 0; }
+      code { font-size: 13px; color: #bbb; }
+
+      /* ── Phase pill ── */
+      .phase { font-size: 12px; color: #c89; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+
+      /* ── Buttons ── */
       button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 0; cursor: pointer; }
-      .approve { background: #2f7d4f; color: #fff; } .reject { background: #8a3b2f; color: #fff; }
+      .approve { background: #2f7d4f; color: #fff; }
+      .reject  { background: #8a3b2f; color: #fff; }
+      .decision-buttons { margin-top: 10px; }
+
+      /* ── Inputs ── */
       input, textarea { width: 100%; box-sizing: border-box; background: #221d19; color: #eee; border: 1px solid #3a322c; border-radius: 6px; padding: 8px; margin: 4px 0; }
-      pre { white-space: pre-wrap; color: #bbb; font-size: 13px; }
+
+      /* ── List view cards ── */
+      .item { border: 1px solid #3a322c; border-radius: 8px; padding: 12px; margin: 10px 0; }
+      .gate { background: #2a1f14; border-color: #a96; }
+      .card-link { display: block; text-decoration: none; color: inherit; }
+      .card-link:hover strong { text-decoration: underline; }
+
+      /* ── Back link ── */
+      .back-link { display: inline-block; color: #c89; text-decoration: none; font-size: 14px; margin-bottom: 14px; }
+      .back-link:hover { text-decoration: underline; }
+
+      /* ── Job page header ── */
+      .job-header { margin-bottom: 16px; }
+      .job-title { margin: 4px 0 0; font-size: 20px; font-weight: 700; }
+
+      /* ── Phase stepper ── */
+      .stepper {
+        display: flex;
+        align-items: center;
+        margin: 18px 0 22px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+      }
+      .step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex-shrink: 0;
+      }
+      .step-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-top: 6px;
+        white-space: nowrap;
+      }
+      /* circle indicator */
+      .step::before {
+        content: "";
+        display: block;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 2px solid #3a322c;
+        background: #1f1b18;
+        box-sizing: border-box;
+        transition: background .2s, border-color .2s;
+      }
+      .step.done::before  { background: #2f7d4f; border-color: #2f7d4f; }
+      .step.current::before { background: #c89; border-color: #c89; }
+      .step.todo::before  { background: #1f1b18; border-color: #3a322c; }
+      .step.error::before { background: #8a3b2f; border-color: #8a3b2f; }
+      .step.done .step-label  { color: #6dba8e; }
+      .step.current .step-label { color: #c89; font-weight: 700; }
+      .step.todo .step-label  { color: #666; }
+      .step.error .step-label { color: #d9735c; font-weight: 700; }
+      /* connector line between steps */
+      .step-connector {
+        flex: 1;
+        height: 2px;
+        background: #3a322c;
+        min-width: 16px;
+        flex-shrink: 0;
+        margin-bottom: 24px; /* align with circle row */
+      }
+      .step-connector.done { background: #2f7d4f; }
+
+      /* ── Job page labeled fields ── */
+      .job-fields { margin-bottom: 18px; }
+      .field { margin: 12px 0; }
+      .field-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: #888;
+        margin-bottom: 4px;
+      }
+      .field-value { color: #ddd; }
+      pre.field-value, code.field-value {
+        background: #1f1b18;
+        border: 1px solid #3a322c;
+        border-radius: 6px;
+        padding: 8px 10px;
+        display: block;
+      }
+
+      /* ── Checkpoint gate (job page) ── */
+      .checkpoint-gate {
+        background: #2a1f14;
+        border: 1px solid #a96;
+        border-radius: 8px;
+        padding: 12px;
+        margin: 16px 0;
+      }
+
+      /* ── Activity log ── */
+      .log-section { margin-top: 20px; }
+      .log-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: #888;
+        margin-bottom: 8px;
+      }
+      .log-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        background: #1a1612;
+        border: 1px solid #3a322c;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .log-entry {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+        padding: 7px 12px;
+        border-bottom: 1px solid #2a2520;
+        font-size: 13px;
+      }
+      .log-entry:last-child { border-bottom: 0; }
+      .log-ts {
+        color: #666;
+        white-space: nowrap;
+        flex-shrink: 0;
+        font-variant-numeric: tabular-nums;
+        font-size: 12px;
+      }
+      .log-line { color: #ccc; word-break: break-word; }
     </style>
   </head>
   <body>
