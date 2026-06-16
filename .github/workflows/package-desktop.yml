@@ -47,6 +47,21 @@ jobs:
       # Step 4: Package — both macOS architectures; never publish to a registry
       - name: Package macOS (arm64 + x64)
         working-directory: desktop
+        env:
+          # Code-signing: Developer ID Application cert exported as base64-encoded .p12.
+          # Read directly by electron-builder.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # Notarization auth: APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD are read
+          # automatically by electron-builder from the environment when the
+          # notarytool path is active (i.e. when notarize.teamId is truthy).
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          # APPLE_TEAM_ID is NOT auto-read by electron-builder. It is consumed via
+          # process.env.APPLE_TEAM_ID in desktop/electron-builder.js, which sets
+          # mac.notarize = { teamId: process.env.APPLE_TEAM_ID }. This is what
+          # triggers the modern notarytool path in electron-builder 24.13.3.
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx electron-builder --mac --x64 --arm64 --publish never
 
       # Step 5: Upload all .dmg and .zip files produced under desktop/out
