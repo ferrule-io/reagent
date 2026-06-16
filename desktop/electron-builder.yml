@@ -1,0 +1,53 @@
+appId: com.reagent.desktop
+productName: Reagent
+copyright: "Copyright © 2024"
+
+directories:
+  buildResources: build
+  output: out
+
+files:
+  - dist/**/*
+  - node_modules/**/*
+  - package.json
+
+# Extra resources are copied INTO the packaged app at runtime
+# (into Contents/Resources/ on macOS). This is distinct from
+# `buildResources` which is consumed at build time only (icns,
+# entitlements) and is NOT present inside the final .app.
+extraResources:
+  # Bridge server (compiled artifact) — resolves at runtime as:
+  #   path.join(process.resourcesPath, 'bridge', 'dist', 'index.js')
+  - from: ../bridge
+    to: bridge
+    filter:
+      - dist/**
+      - node_modules/**
+      - package.json
+      - package-lock.json
+  # Tray icon — resolves at runtime as:
+  #   path.join(process.resourcesPath, 'tray-icon.png')
+  - from: build/tray-icon.png
+    to: tray-icon.png
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+
+# Windows and Linux targets are pre-declared so they work without restructuring;
+# activate by running app:build:all or adding --win/--linux flags.
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
