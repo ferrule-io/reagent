@@ -93,11 +93,29 @@ Push a tag (`git tag v0.1.0 && git push origin v0.1.0`) or manually trigger the
 **Package Desktop** workflow. A successful run will:
 
 1. Build and sign the `.app` with `Developer ID Application`.
-2. Submit the signed app to Apple's notarization service (`notarytool`).
-3. Staple the notarization ticket to the `.dmg` and `.zip` artifacts.
+2. Submit the signed `.app` to Apple's notarization service (`notarytool`).
+3. Staple the notarization ticket to the `.app` inside each `.dmg` and `.zip`.
+4. Code-sign each `.dmg` container with `Developer ID Application`.
+5. Submit each `.dmg` to Apple's notarization service and wait for acceptance.
+6. Staple the notarization ticket to each `.dmg`.
 
 The uploaded artifacts can be distributed outside the Mac App Store without Gatekeeper
 warnings.
+
+To verify a downloaded `.dmg`:
+
+```sh
+# Confirm the DMG itself is stapled and accepted:
+xcrun stapler validate Reagent-*.dmg
+# expect: "The validate action worked!"
+
+spctl -a -t open --context context:primary-signature Reagent-*.dmg
+# expect: accepted / source=Notarized Developer ID
+
+# Confirm the .app inside is also signed correctly:
+spctl -a -vvv -t install /Volumes/Reagent/Reagent.app
+codesign -dv --verbose=4 /Volumes/Reagent/Reagent.app
+```
 
 ## Troubleshooting
 
@@ -112,3 +130,10 @@ warnings.
   ensure it is unset). With `APPLE_TEAM_ID` unset, `electron-builder.js` sets
   `notarize: false` and the build succeeds unsigned. To skip signing entirely, also set
   `CSC_IDENTITY_AUTO_DISCOVERY=false`.
+- **DMG notarization fails (afterAllArtifactBuild step)** — Check the CI log for the
+  `xcrun notarytool submit` output. Common causes: `APPLE_ID` or
+  `APPLE_APP_SPECIFIC_PASSWORD` is wrong/expired (regenerate the app-specific password
+  and update the secret), or the DMG was not successfully signed by `codesign` before
+  submission (check the `codesign` output immediately preceding the `notarytool` call in
+  the log). The `notarytool submit --wait` command prints Apple's full error response on
+  failure.
