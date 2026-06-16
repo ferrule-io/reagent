@@ -31,6 +31,15 @@ cd bridge && npm run dev
 # serves MCP at http://localhost:4319/mcp and the PWA at http://localhost:4319/
 ```
 
+Alternatively, run the Electron desktop app (macOS only, M1):
+
+```sh
+cd desktop && npm run app:dev
+# tray icon appears in menu bar; bridge starts automatically on :4319
+```
+
+See [desktop/README.md](desktop/README.md) for build and packaging instructions.
+
 Keep this running. For phone access over Tailscale:
 
 ```sh
@@ -69,12 +78,13 @@ skills/           reagent-pipeline skill (orchestrator: INVESTIGATE→PROPOSE→
 agents/           reagent-planner, reagent-executor, reagent-reviewer subagents
 commands/         /reagent:start, :ping, :resume, :version
 bridge/           always-on hub (HTTP + PWA + MCP on :4319)
+desktop/          Electron menu-bar app wrapping the bridge server (macOS .app)
 docs/             PLUGIN.md, bridge details, work item plans
 ```
 
 ## Status
 
-- **M1** — complete. Bridge, plugin, full end-to-end pipeline (terminal + headless phone-driven), approval gate, Tailscale.
+- **M1** — complete. Bridge, plugin, full end-to-end pipeline (terminal + headless phone-driven), approval gate, Tailscale, Electron desktop app.
 - **M2** — full pipeline (per-unit path scoping, parallel worktrees, richer proposal UI).
 
 ## Learn more
