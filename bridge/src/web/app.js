@@ -470,7 +470,7 @@ function formatTs(iso) {
 function deriveUnitStatus(unit, log) {
   try {
     // Resolve the unit identifier
-    let unitId = unit && unit.id ? String(unit.id) : null;
+    let unitId = unit?.id ? String(unit.id) : null;
     if (!unitId && unit && unit.planDocPath) {
       const base = String(unit.planDocPath).split("/").pop() || "";
       unitId = base.replace(/\.[^.]+$/, ""); // strip extension
@@ -610,7 +610,7 @@ function buildActivityBanner(it) {
 
   const text = document.createElement("span");
   text.className = "activity-banner-text";
-  text.textContent = "▶ " + lastEntry.line;
+  text.textContent = `▶ ${lastEntry.line}`;
   banner.appendChild(text);
 
   return banner;
