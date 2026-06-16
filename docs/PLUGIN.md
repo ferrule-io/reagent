@@ -24,9 +24,9 @@ Re-sync after editing plugin files: `/plugin marketplace update reagent` + `/rel
 
 ## Commands (interactive)
 
-- `/reagent:reagent ping` — registers a throwaway work item; confirm it appears at http://localhost:4319/. (Connectivity check.)
-- `/reagent:reagent start <repoPath> <request...>` — begin work interactively: the skill investigates `repoPath`, proposes a direction, opens an **approval gate**, and **stays open polling** until you Approve/Reject from the bridge UI. On approval, the scoped `reagent-executor` subagent makes the change on `reagent/<id>` and commits.
-- `/reagent:reagent resume <id>` — reconstruct an in-flight item from the bridge and continue it.
+- `/reagent:ping` — registers a throwaway work item; confirm it appears at http://localhost:4319/. (Connectivity check.)
+- `/reagent:start <repoPath> <request...>` — begin work interactively: the skill investigates `repoPath`, proposes a direction, opens an **approval gate**, and **stays open polling** until you Approve/Reject from the bridge UI. On approval, the scoped `reagent-executor` subagent makes the change on `reagent/<id>` and commits.
+- `/reagent:resume <id>` — reconstruct an in-flight item from the bridge and continue it.
 
 ## How it works
 
