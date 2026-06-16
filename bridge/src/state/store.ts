@@ -9,6 +9,8 @@ export interface CreateInput {
   repoPath: string;
   request: string;
   origin: "terminal" | "phone";
+  /** Pre-derived human-readable branch name (e.g. `reagent/<slug>`). */
+  branch?: string;
 }
 
 export class StateStore {
@@ -32,6 +34,7 @@ export class StateStore {
       log: [],
       createdAt: now,
       updatedAt: now,
+      ...(input.branch !== undefined ? { branch: input.branch } : {}),
     };
     this.write(item);
     return item;

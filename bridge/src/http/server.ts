@@ -8,6 +8,7 @@ import type { RepoStore } from "../state/repos.js";
 import type { Registry } from "../registry/registry.js";
 import type { CheckpointStore } from "../checkpoints/checkpoints.js";
 import type { SessionLauncher } from "../launch/launcher.js";
+import { branchFor } from "../state/slug.js";
 
 export interface HttpDeps {
   store: StateStore;
@@ -60,7 +61,12 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
       title: string; repoPath: string; request: string;
     };
     const id = `wi_${randomUUID().slice(0, 8)}`;
-    const item = store.create({ id, title, repoPath, request, origin: "phone" });
+    // Derive a human-readable branch slug at creation time; avoid collisions with existing items.
+    const existingBranches = new Set(
+      store.list().map((item) => item.branch).filter(Boolean) as string[],
+    );
+    const branch = branchFor(title, id, existingBranches);
+    const item = store.create({ id, title, repoPath, request, origin: "phone", branch });
     registry.upsert(item);
     // Launch a headless session to drive this work item (investigate -> open gate -> exit).
     launcher?.startAsync({ id, repoPath, request });
