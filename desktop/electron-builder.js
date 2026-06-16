@@ -99,4 +99,48 @@ module.exports = {
       { target: 'deb', arch: ['x64'] },
     ],
   },
+
+  afterAllArtifactBuild: async (buildResult) => {
+    // Only run when signing credentials are present (CI with secrets).
+    // Unsigned local builds skip this entirely.
+    if (!process.env.APPLE_TEAM_ID) return;
+
+    const { execFileSync } = require('node:child_process');
+    const dmgs = buildResult.artifactPaths.filter((p) => p.endsWith('.dmg'));
+
+    for (const dmg of dmgs) {
+      console.log(`[afterAllArtifactBuild] Signing DMG: ${dmg}`);
+      execFileSync(
+        'codesign',
+        [
+          '--sign', 'Developer ID Application',
+          '--timestamp',
+          '--verbose',
+          dmg,
+        ],
+        { stdio: 'inherit' },
+      );
+
+      console.log(`[afterAllArtifactBuild] Notarizing DMG: ${dmg}`);
+      execFileSync(
+        'xcrun',
+        [
+          'notarytool', 'submit',
+          '--apple-id', process.env.APPLE_ID,
+          '--password', process.env.APPLE_APP_SPECIFIC_PASSWORD,
+          '--team-id', process.env.APPLE_TEAM_ID,
+          '--wait',
+          dmg,
+        ],
+        { stdio: 'inherit' },
+      );
+
+      console.log(`[afterAllArtifactBuild] Stapling DMG: ${dmg}`);
+      execFileSync(
+        'xcrun',
+        ['stapler', 'staple', dmg],
+        { stdio: 'inherit' },
+      );
+    }
+  },
 };
