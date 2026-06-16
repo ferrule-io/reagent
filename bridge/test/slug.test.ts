@@ -39,7 +39,7 @@ describe("slugify", () => {
 
   it("does not truncate mid-word when truncation lands on a hyphen boundary", () => {
     // 45 chars of 'a' + '-extra' = 51 chars total; slug should trim the trailing '-' at position 50
-    const title = "a".repeat(45) + "-extra";
+    const title = `${"a".repeat(45)}-extra`;
     const result = slugify(title);
     expect(result.length).toBeLessThanOrEqual(50);
     expect(result.endsWith("-")).toBe(false);

@@ -58,12 +58,17 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
 
   app.post("/api/items", async (req, reply) => {
     const { title, repoPath, request } = req.body as {
-      title: string; repoPath: string; request: string;
+      title: string;
+      repoPath: string;
+      request: string;
     };
     const id = `wi_${randomUUID().slice(0, 8)}`;
     // Derive a human-readable branch slug at creation time; avoid collisions with existing items.
     const existingBranches = new Set(
-      store.list().map((item) => item.branch).filter(Boolean) as string[],
+      store
+        .list()
+        .map((item) => item.branch)
+        .filter(Boolean) as string[],
     );
     const branch = branchFor(title, id, existingBranches);
     const item = store.create({ id, title, repoPath, request, origin: "phone", branch });
@@ -120,7 +125,7 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
     });
-    reply.raw.write(`event: hello\ndata: {}\n\n`);
+    reply.raw.write("event: hello\ndata: {}\n\n");
     reply.hijack();
     const off = registry.subscribe((item) => {
       reply.raw.write(`event: item\ndata: ${JSON.stringify(item)}\n\n`);

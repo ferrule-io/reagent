@@ -47,7 +47,10 @@ describe("StateStore", () => {
   it("lists all persisted work items (wi_*.yaml only), ignoring other yaml files", () => {
     store.create({ id: "wi_a", title: "a", repoPath: "/r", request: "q", origin: "terminal" });
     store.create({ id: "wi_b", title: "b", repoPath: "/r", request: "q", origin: "phone" });
-    const ids = store.list().map((i) => i.id).sort();
+    const ids = store
+      .list()
+      .map((i) => i.id)
+      .sort();
     expect(ids).toEqual(["wi_a", "wi_b"]);
   });
 

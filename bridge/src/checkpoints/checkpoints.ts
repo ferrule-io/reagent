@@ -11,9 +11,7 @@ interface Pending {
   waiters: Array<() => void>;
 }
 
-export type AwaitResult =
-  | { status: "pending" }
-  | { status: "decided"; decision: Decision };
+export type AwaitResult = { status: "pending" } | { status: "decided"; decision: Decision };
 
 export class CheckpointStore {
   private readonly pending = new Map<string, Pending>();

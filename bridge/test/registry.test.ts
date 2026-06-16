@@ -21,13 +21,24 @@ describe("Registry", () => {
     store.create({ id: "wi_a", title: "A", repoPath: "/r", request: "q", origin: "terminal" });
     store.create({ id: "wi_b", title: "B", repoPath: "/r", request: "q", origin: "phone" });
     reg.loadFrom(store);
-    expect(reg.list().map((i) => i.id).sort()).toEqual(["wi_a", "wi_b"]);
+    expect(
+      reg
+        .list()
+        .map((i) => i.id)
+        .sort(),
+    ).toEqual(["wi_a", "wi_b"]);
   });
 
   it("notifies subscribers when an item is upserted", () => {
     const seen: string[] = [];
     reg.subscribe((item) => seen.push(item.id));
-    const item = store.create({ id: "wi_c", title: "C", repoPath: "/r", request: "q", origin: "terminal" });
+    const item = store.create({
+      id: "wi_c",
+      title: "C",
+      repoPath: "/r",
+      request: "q",
+      origin: "terminal",
+    });
     reg.upsert(item);
     expect(seen).toEqual(["wi_c"]);
     expect(reg.get("wi_c")?.title).toBe("C");
@@ -37,7 +48,9 @@ describe("Registry", () => {
     const seen: string[] = [];
     const off = reg.subscribe((item) => seen.push(item.id));
     off();
-    reg.upsert(store.create({ id: "wi_d", title: "D", repoPath: "/r", request: "q", origin: "terminal" }));
+    reg.upsert(
+      store.create({ id: "wi_d", title: "D", repoPath: "/r", request: "q", origin: "terminal" }),
+    );
     expect(seen).toEqual([]);
   });
 });
