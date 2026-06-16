@@ -49,6 +49,33 @@ describe("HTTP API", () => {
     expect(store.get(body.id)?.request).toBe("fix it");
   });
 
+  it("derives a human-readable branch when creating a phone-origin item", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/items",
+      payload: { title: "Improve onboarding flow", repoPath: "/r", request: "make it better" },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.branch).toBe("reagent/improve-onboarding-flow");
+    expect(store.get(body.id)?.branch).toBe("reagent/improve-onboarding-flow");
+  });
+
+  it("disambiguates duplicate phone-origin branches with a numeric suffix", async () => {
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/items",
+      payload: { title: "Update readme", repoPath: "/r", request: "q" },
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/items",
+      payload: { title: "Update readme", repoPath: "/r", request: "q" },
+    });
+    expect(first.json().branch).toBe("reagent/update-readme");
+    expect(second.json().branch).toBe("reagent/update-readme-2");
+  });
+
   it("resolves a pending checkpoint via POST decision", async () => {
     store.create({ id: "b", title: "B", repoPath: "/r", request: "q", origin: "terminal" });
     cps.open("b", "cp_b", "approve?");

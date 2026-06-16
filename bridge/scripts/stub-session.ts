@@ -41,7 +41,11 @@ async function main() {
   if (decision.result === "reject") {
     await client.callTool({ name: "complete_work_item", arguments: { id, phase: "REJECTED" } });
   } else {
-    await client.callTool({ name: "report_status", arguments: { id, phase: "EXECUTE", line: "making the change…", branch: `reagent/${id}` } });
+    // Fetch the stored branch (derived at registration time) rather than constructing reagent/<id>.
+    const itemRes = await fetch(`${process.env.REAGENT_BRIDGE_HTTP_URL ?? "http://localhost:4319"}/api/items/${id}`);
+    const item = await itemRes.json() as { branch?: string };
+    const branch = item.branch ?? `reagent/${id}`;
+    await client.callTool({ name: "report_status", arguments: { id, phase: "EXECUTE", line: "making the change…", branch } });
     await client.callTool({ name: "complete_work_item", arguments: { id, phase: "DONE" } });
   }
   console.log("done");

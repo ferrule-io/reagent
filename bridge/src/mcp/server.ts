@@ -6,6 +6,7 @@ import type { StateStore } from "../state/store.js";
 import type { Registry } from "../registry/registry.js";
 import type { CheckpointStore } from "../checkpoints/checkpoints.js";
 import type { Phase, Unit } from "../state/types.js";
+import { branchFor } from "../state/slug.js";
 
 export interface McpDeps {
   store: StateStore;
@@ -57,7 +58,14 @@ export function buildMcpServer(deps: McpDeps): McpServer {
       // which matches the terminal session that invoked the skill.
       const absoluteRepoPath =
         repoPath && isAbsolute(repoPath) ? repoPath : resolve(process.cwd(), repoPath || ".");
-      if (!store.get(id)) store.create({ id, title, repoPath: absoluteRepoPath, request, origin });
+      if (!store.get(id)) {
+        // Derive a human-readable branch slug at creation time; avoid collisions with existing items.
+        const existingBranches = new Set(
+          store.list().map((item) => item.branch).filter(Boolean) as string[],
+        );
+        const branch = branchFor(title, id, existingBranches);
+        store.create({ id, title, repoPath: absoluteRepoPath, request, origin, branch });
+      }
       touch(id);
       return json({ ok: true });
     },

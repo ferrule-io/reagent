@@ -42,6 +42,41 @@ describe("MCP server tools", () => {
     expect(reg.get("wi_1")?.title).toBe("T");
   });
 
+  it("derives a human-readable branch at creation time", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_br1", title: "Fix the login bug", repoPath: "/r", request: "q", origin: "terminal" },
+    });
+    expect(store.get("wi_br1")?.branch).toBe("reagent/fix-the-login-bug");
+  });
+
+  it("disambiguates duplicate title branches with a numeric suffix", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_dup1", title: "Add dark mode", repoPath: "/r", request: "q", origin: "terminal" },
+    });
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_dup2", title: "Add dark mode", repoPath: "/r", request: "q", origin: "terminal" },
+    });
+    expect(store.get("wi_dup1")?.branch).toBe("reagent/add-dark-mode");
+    expect(store.get("wi_dup2")?.branch).toBe("reagent/add-dark-mode-2");
+  });
+
+  it("does not overwrite branch on refresh/re-register of existing item", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_ref", title: "My feature", repoPath: "/r", request: "q", origin: "terminal" },
+    });
+    const first = store.get("wi_ref")?.branch;
+    // Re-register (refresh)
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_ref", title: "My feature", repoPath: "/r", request: "q", origin: "terminal" },
+    });
+    expect(store.get("wi_ref")?.branch).toBe(first);
+  });
+
   it("resolves '.' repoPath to an absolute path (current working directory)", async () => {
     await client.callTool({
       name: "register_work_item",
