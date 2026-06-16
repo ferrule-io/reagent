@@ -33,9 +33,9 @@ function startBridge() {
     return;
   }
 
-  logLines.push(`[INFO] starting bridge: node ${entry}`);
-  bridgeProcess = spawn('node', [entry], {
-    env: { ...process.env },
+  logLines.push(`[INFO] starting bridge: ${process.execPath} (ELECTRON_RUN_AS_NODE) ${entry}`);
+  bridgeProcess = spawn(process.execPath, [entry], {
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
