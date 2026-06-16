@@ -4,12 +4,14 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { readFileSync } from "node:fs";
 import type { StateStore } from "../state/store.js";
+import type { RepoStore } from "../state/repos.js";
 import type { Registry } from "../registry/registry.js";
 import type { CheckpointStore } from "../checkpoints/checkpoints.js";
 import type { SessionLauncher } from "../launch/launcher.js";
 
 export interface HttpDeps {
   store: StateStore;
+  repos: RepoStore;
   registry: Registry;
   checkpoints: CheckpointStore;
   /** Optional: when present, phone-submitted work is launched and re-launched on approval. */
@@ -19,8 +21,30 @@ export interface HttpDeps {
 const webDir = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 
 export function buildHttpServer(deps: HttpDeps): FastifyInstance {
-  const { store, registry, checkpoints, launcher } = deps;
+  const { store, repos, registry, checkpoints, launcher } = deps;
   const app = Fastify({ logger: false, forceCloseConnections: true });
+
+  // ── Repo registry routes ─────────────────────────────────────────────────
+
+  app.get("/api/repos", async () => repos.list());
+
+  app.post("/api/repos", async (req, reply) => {
+    const { name, path } = req.body as { name?: string; path?: string };
+    if (!path || !path.trim()) {
+      return reply.code(400).send({ error: "path is required" });
+    }
+    const repo = repos.add({ name, path });
+    return reply.code(201).send(repo);
+  });
+
+  app.delete("/api/repos/:id", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const removed = repos.remove(id);
+    if (!removed) return reply.code(404).send({ error: "repo not found" });
+    return { ok: true };
+  });
+
+  // ── Work item routes ─────────────────────────────────────────────────────
 
   app.get("/api/items", async () => registry.list());
 

@@ -60,7 +60,7 @@ export class StateStore {
 
   list(): WorkItem[] {
     return readdirSync(this.dir)
-      .filter((f) => f.endsWith(".yaml"))
+      .filter((f) => f.startsWith("wi_") && f.endsWith(".yaml"))
       .map((f) => parse(readFileSync(join(this.dir, f), "utf8")) as WorkItem);
   }
 }

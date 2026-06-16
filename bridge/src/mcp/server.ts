@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { resolve, isAbsolute } from "node:path";
 import type { StateStore } from "../state/store.js";
 import type { Registry } from "../registry/registry.js";
 import type { CheckpointStore } from "../checkpoints/checkpoints.js";
@@ -43,7 +44,12 @@ export function buildMcpServer(deps: McpDeps): McpServer {
       },
     },
     async ({ id, title, repoPath, request, origin }) => {
-      if (!store.get(id)) store.create({ id, title, repoPath, request, origin });
+      // Resolve relative or '.' paths to absolute using process.cwd().
+      // Note: process.cwd() reflects the cwd of the bridge server process,
+      // which matches the terminal session that invoked the skill.
+      const absoluteRepoPath =
+        repoPath && isAbsolute(repoPath) ? repoPath : resolve(process.cwd(), repoPath || ".");
+      if (!store.get(id)) store.create({ id, title, repoPath: absoluteRepoPath, request, origin });
       touch(id);
       return json({ ok: true });
     },

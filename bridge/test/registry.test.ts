@@ -18,26 +18,26 @@ describe("Registry", () => {
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   it("loads all items from a StateStore", () => {
-    store.create({ id: "a", title: "A", repoPath: "/r", request: "q", origin: "terminal" });
-    store.create({ id: "b", title: "B", repoPath: "/r", request: "q", origin: "phone" });
+    store.create({ id: "wi_a", title: "A", repoPath: "/r", request: "q", origin: "terminal" });
+    store.create({ id: "wi_b", title: "B", repoPath: "/r", request: "q", origin: "phone" });
     reg.loadFrom(store);
-    expect(reg.list().map((i) => i.id).sort()).toEqual(["a", "b"]);
+    expect(reg.list().map((i) => i.id).sort()).toEqual(["wi_a", "wi_b"]);
   });
 
   it("notifies subscribers when an item is upserted", () => {
     const seen: string[] = [];
     reg.subscribe((item) => seen.push(item.id));
-    const item = store.create({ id: "c", title: "C", repoPath: "/r", request: "q", origin: "terminal" });
+    const item = store.create({ id: "wi_c", title: "C", repoPath: "/r", request: "q", origin: "terminal" });
     reg.upsert(item);
-    expect(seen).toEqual(["c"]);
-    expect(reg.get("c")?.title).toBe("C");
+    expect(seen).toEqual(["wi_c"]);
+    expect(reg.get("wi_c")?.title).toBe("C");
   });
 
   it("stops notifying after unsubscribe", () => {
     const seen: string[] = [];
     const off = reg.subscribe((item) => seen.push(item.id));
     off();
-    reg.upsert(store.create({ id: "d", title: "D", repoPath: "/r", request: "q", origin: "terminal" }));
+    reg.upsert(store.create({ id: "wi_d", title: "D", repoPath: "/r", request: "q", origin: "terminal" }));
     expect(seen).toEqual([]);
   });
 });

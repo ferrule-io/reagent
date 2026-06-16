@@ -1,4 +1,5 @@
 const items = new Map();
+let repos = [];
 
 // ─── Routing ────────────────────────────────────────────────────────────────
 
@@ -33,11 +34,98 @@ async function route() {
   }
 }
 
+// ─── Repo helpers ────────────────────────────────────────────────────────────
+
+async function loadRepos() {
+  try {
+    const res = await fetch("/api/repos");
+    if (res.ok) repos = await res.json();
+  } catch (_) {}
+}
+
+async function refreshRepos() {
+  await loadRepos();
+  const r = currentRoute();
+  if (r.view === "list") renderListPage();
+}
+
+function reposPanel() {
+  const details = document.createElement("details");
+  details.className = "repos-panel";
+  details.innerHTML = `<summary>Repos</summary>`;
+
+  const content = document.createElement("div");
+  content.className = "repos-content";
+
+  if (repos.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "repos-empty";
+    empty.textContent = "No repos saved yet.";
+    content.appendChild(empty);
+  } else {
+    const list = document.createElement("ul");
+    list.className = "repos-list";
+    for (const r of repos) {
+      const li = document.createElement("li");
+      li.className = "repo-item";
+      const nameEl = document.createElement("span");
+      nameEl.className = "repo-name";
+      nameEl.textContent = r.name;
+      const pathEl = document.createElement("span");
+      pathEl.className = "repo-path";
+      pathEl.textContent = r.path;
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "repo-remove";
+      removeBtn.textContent = "Remove";
+      removeBtn.onclick = async () => {
+        await fetch(`/api/repos/${r.id}`, { method: "DELETE" });
+        await refreshRepos();
+      };
+      li.appendChild(nameEl);
+      li.appendChild(pathEl);
+      li.appendChild(removeBtn);
+      list.appendChild(li);
+    }
+    content.appendChild(list);
+  }
+
+  // Add repo form
+  const addForm = document.createElement("form");
+  addForm.id = "add-repo";
+  addForm.innerHTML = `
+    <div class="add-repo-row">
+      <input name="name" placeholder="name (optional)" />
+      <input name="path" placeholder="/path/to/repo" required />
+      <button type="submit">Add</button>
+    </div>
+  `;
+  addForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const name = f.get("name") || "";
+    const path = f.get("path") || "";
+    if (!path.trim()) return;
+    await fetch("/api/repos", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, path }),
+    });
+    e.target.reset();
+    await refreshRepos();
+  });
+  content.appendChild(addForm);
+
+  details.appendChild(content);
+  return details;
+}
+
 // ─── List page ──────────────────────────────────────────────────────────────
 
 function renderListPage() {
   const main = document.querySelector("main");
   main.innerHTML = "";
+
+  main.appendChild(reposPanel());
 
   const newWork = newWorkForm();
   main.appendChild(newWork);
@@ -417,11 +505,22 @@ function inlineMarkdown(raw) {
 
 function newWorkForm() {
   const details = document.createElement("details");
+
+  // Build the repo path field: datalist + text input so users can pick saved
+  // repos or type any path freely (works even when no repos are saved yet).
+  const datalistId = "repo-datalist";
+  const datalistHtml = repos.length
+    ? `<datalist id="${datalistId}">${repos.map((r) =>
+        `<option value="${escapeHtml(r.path)}" label="${escapeHtml(r.name)}"></option>`
+      ).join("")}</datalist>`
+    : `<datalist id="${datalistId}"></datalist>`;
+
   details.innerHTML = `
     <summary>Start new work</summary>
     <form id="new">
       <input name="title" placeholder="title" required />
-      <input name="repoPath" placeholder="/path/to/repo" required />
+      ${datalistHtml}
+      <input name="repoPath" placeholder="/path/to/repo" list="${datalistId}" required />
       <textarea name="request" placeholder="what needs doing?" required></textarea>
       <button type="submit">Start</button>
     </form>
@@ -442,8 +541,11 @@ function newWorkForm() {
 // ─── SSE + init ─────────────────────────────────────────────────────────────
 
 async function init() {
-  const res = await fetch("/api/items");
-  for (const it of await res.json()) items.set(it.id, it);
+  const [itemsRes] = await Promise.all([
+    fetch("/api/items"),
+    loadRepos(),
+  ]);
+  for (const it of await itemsRes.json()) items.set(it.id, it);
 
   route();
 

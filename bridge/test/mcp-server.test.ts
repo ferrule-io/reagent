@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, isAbsolute } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { StateStore } from "../src/state/store.js";
@@ -40,6 +40,35 @@ describe("MCP server tools", () => {
     });
     expect(store.get("wi_1")?.request).toBe("do it");
     expect(reg.get("wi_1")?.title).toBe("T");
+  });
+
+  it("resolves '.' repoPath to an absolute path (current working directory)", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_dot", title: "T", repoPath: ".", request: "q", origin: "terminal" },
+    });
+    const stored = store.get("wi_dot");
+    expect(stored).toBeTruthy();
+    expect(isAbsolute(stored!.repoPath)).toBe(true);
+    expect(stored!.repoPath).toBe(process.cwd());
+  });
+
+  it("resolves empty repoPath to current working directory", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_empty", title: "T", repoPath: "", request: "q", origin: "terminal" },
+    });
+    const stored = store.get("wi_empty");
+    expect(stored).toBeTruthy();
+    expect(isAbsolute(stored!.repoPath)).toBe(true);
+  });
+
+  it("keeps already-absolute repoPath unchanged", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_abs", title: "T", repoPath: "/absolute/path", request: "q", origin: "terminal" },
+    });
+    expect(store.get("wi_abs")?.repoPath).toBe("/absolute/path");
   });
 
   it("report_status updates phase and appends a log line", async () => {

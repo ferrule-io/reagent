@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadConfig } from "./config.js";
 import { StateStore } from "./state/store.js";
+import { RepoStore } from "./state/repos.js";
 import { Registry } from "./registry/registry.js";
 import { Watcher } from "./registry/watcher.js";
 import { CheckpointStore } from "./checkpoints/checkpoints.js";
@@ -14,6 +15,7 @@ import { Launcher, type SpawnLike } from "./launch/launcher.js";
 async function main() {
   const cfg = loadConfig();
   const store = new StateStore(cfg.stateDir);
+  const repos = new RepoStore(cfg.stateDir);
   const registry = new Registry();
   registry.loadFrom(store);
   const watcher = new Watcher(cfg.stateDir, store, registry);
@@ -34,7 +36,7 @@ async function main() {
     permissionMode: cfg.launchPermissionMode,
     allowedTools: cfg.launchAllowedTools,
   });
-  const app = buildHttpServer({ store, registry, checkpoints, launcher });
+  const app = buildHttpServer({ store, repos, registry, checkpoints, launcher });
 
   // Mount the MCP server at /mcp using stateless Streamable HTTP transport.
   // Per-request pattern: each POST creates a fresh transport + server instance
