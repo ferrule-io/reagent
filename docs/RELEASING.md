@@ -85,8 +85,9 @@ Pushing the tag is what starts the build. The branch push alone does **not**.
 gh run watch       # or: gh run list --workflow "Package Desktop"
 ```
 
-The run signs and notarizes the app (notarization adds several minutes — Apple's
-service is the slow part).
+The run signs and notarizes the app, then signs and notarizes each `.dmg` container
+separately (one notarization submission per architecture, two total — Apple's service is
+the slow part, expect 3-8 minutes per submission).
 
 ## 5. Get the installers
 
@@ -102,8 +103,18 @@ Or download from the run's **Artifacts** section in the GitHub Actions UI.
 Sanity-check a downloaded `.dmg`/`.app`:
 
 ```sh
-spctl -a -vvv -t install /path/to/Reagent.app     # expect: accepted, source=Notarized Developer ID
-codesign -dv --verbose=4 /path/to/Reagent.app      # shows the signing identity + Team ID
+# Verify the DMG itself is notarized and stapled:
+xcrun stapler validate Reagent-*.dmg
+# expect: "The validate action worked!"
+
+spctl -a -t open --context context:primary-signature Reagent-*.dmg
+# expect: accepted / source=Notarized Developer ID
+
+# Verify the .app inside the DMG:
+spctl -a -vvv -t install /Volumes/Reagent/Reagent.app
+# expect: accepted, source=Notarized Developer ID
+codesign -dv --verbose=4 /Volumes/Reagent/Reagent.app
+# shows the signing identity + Team ID
 ```
 
 ---
