@@ -114,11 +114,37 @@ async function main() {
   await app.listen({ port: cfg.httpPort, host: "0.0.0.0" });
   console.log(`reagent bridge on http://0.0.0.0:${cfg.httpPort}  (state: ${cfg.stateDir})`);
 
-  const shutdown = async () => {
-    await watcher.stop();
-    await app.close();
-    process.exit(0);
+  let shuttingDown = false;
+
+  const shutdown = () => {
+    if (shuttingDown) {
+      // Second signal while teardown is in progress — force exit immediately.
+      process.exit(1);
+    }
+    shuttingDown = true;
+    console.log("shutting down…");
+
+    // Race graceful teardown against a hard timeout so we never hang.
+    const timer = setTimeout(() => {
+      console.error("shutdown timed out, forcing exit");
+      process.exit(0);
+    }, 3000);
+    // Allow the Node process to exit even if the timer is still pending.
+    if (timer.unref) timer.unref();
+
+    (async () => {
+      try {
+        await watcher.stop();
+        await app.close();
+      } catch {
+        // Ignore teardown errors — we're exiting regardless.
+      } finally {
+        clearTimeout(timer);
+        process.exit(0);
+      }
+    })();
   };
+
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 }

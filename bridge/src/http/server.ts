@@ -20,7 +20,7 @@ const webDir = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 
 export function buildHttpServer(deps: HttpDeps): FastifyInstance {
   const { store, registry, checkpoints, launcher } = deps;
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: false, forceCloseConnections: true });
 
   app.get("/api/items", async () => registry.list());
 
