@@ -52,7 +52,7 @@ async function refreshRepos() {
 function reposPanel() {
   const details = document.createElement("details");
   details.className = "repos-panel";
-  details.innerHTML = `<summary>Repos</summary>`;
+  details.innerHTML = "<summary>Repos</summary>";
 
   const content = document.createElement("div");
   content.className = "repos-content";
@@ -141,7 +141,7 @@ function renderListPage() {
 function card(it) {
   const gate = it.pendingCheckpoint && !it.pendingCheckpoint.decision;
   const div = document.createElement("div");
-  div.className = "item" + (gate ? " gate" : "");
+  div.className = `item${gate ? " gate" : ""}`;
 
   const link = document.createElement("a");
   link.href = `#/job/${it.id}`;
@@ -282,14 +282,14 @@ function renderJobPage(id) {
       if (unit.scope && unit.scope.length > 0) {
         const scopeEl = document.createElement("div");
         scopeEl.className = "unit-scope";
-        scopeEl.textContent = "Scope: " + unit.scope.join(", ");
+        scopeEl.textContent = `Scope: ${unit.scope.join(", ")}`;
         li.appendChild(scopeEl);
       }
 
       if (unit.dependsOn && unit.dependsOn.length > 0) {
         const depsEl = document.createElement("div");
         depsEl.className = "unit-deps";
-        depsEl.textContent = "Depends on: " + unit.dependsOn.join(", ");
+        depsEl.textContent = `Depends on: ${unit.dependsOn.join(", ")}`;
         li.appendChild(depsEl);
       }
 
@@ -354,13 +354,9 @@ function renderJobPage(id) {
 
 function buildStepper(phase) {
   const isError = TERMINAL_ERROR.includes(phase);
-  const stages = isError
-    ? [...PIPELINE_STAGES.slice(0, -1), phase]
-    : PIPELINE_STAGES;
+  const stages = isError ? [...PIPELINE_STAGES.slice(0, -1), phase] : PIPELINE_STAGES;
 
-  const currentIdx = isError
-    ? stages.length - 1
-    : stages.indexOf(phase);
+  const currentIdx = isError ? stages.length - 1 : stages.indexOf(phase);
 
   const stepper = document.createElement("div");
   stepper.className = "stepper";
@@ -386,7 +382,7 @@ function buildStepper(phase) {
     // connector line between steps
     if (i < stages.length - 1) {
       const line = document.createElement("div");
-      line.className = "step-connector" + (i < currentIdx ? " done" : "");
+      line.className = `step-connector${i < currentIdx ? " done" : ""}`;
       stepper.appendChild(line);
     }
   });
@@ -425,7 +421,13 @@ function labeledField(label, value, tag) {
 function formatTs(iso) {
   try {
     const d = new Date(iso);
-    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return d.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   } catch (_) {
     return iso;
   }
@@ -467,7 +469,9 @@ function decisionButtons(id, textarea) {
 
 function button(label, cls, onClick) {
   const b = document.createElement("button");
-  b.textContent = label; b.className = cls; b.onclick = onClick;
+  b.textContent = label;
+  b.className = cls;
+  b.onclick = onClick;
   return b;
 }
 
@@ -481,9 +485,17 @@ async function decide(id, result, note) {
 
 function escapeHtml(s) {
   if (s == null) return "";
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  }[c]));
+  return String(s).replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[c],
+  );
 }
 
 // ─── Markdown renderer ───────────────────────────────────────────────────────
@@ -511,7 +523,9 @@ function renderMarkdown(src) {
         i++;
       }
       i++; // skip closing fence
-      out.push(`<pre class="md-code-block"><code${lang ? ` class="language-${lang}"` : ""}>${codeLines.join("\n")}</code></pre>`);
+      out.push(
+        `<pre class="md-code-block"><code${lang ? ` class="language-${lang}"` : ""}>${codeLines.join("\n")}</code></pre>`,
+      );
       continue;
     }
 
@@ -532,7 +546,7 @@ function renderMarkdown(src) {
 
     // Unordered list
     if (/^[-*]\s/.test(raw)) {
-      out.push("<ul class=\"md-ul\">");
+      out.push('<ul class="md-ul">');
       while (i < lines.length && /^[-*]\s/.test(lines[i])) {
         out.push(`<li>${inlineMarkdown(lines[i].slice(2))}</li>`);
         i++;
@@ -543,7 +557,7 @@ function renderMarkdown(src) {
 
     // Ordered list
     if (/^\d+\.\s/.test(raw)) {
-      out.push("<ol class=\"md-ol\">");
+      out.push('<ol class="md-ol">');
       while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
         out.push(`<li>${inlineMarkdown(lines[i].replace(/^\d+\.\s/, ""))}</li>`);
         i++;
@@ -593,9 +607,9 @@ function newWorkForm() {
   // repos or type any path freely (works even when no repos are saved yet).
   const datalistId = "repo-datalist";
   const datalistHtml = repos.length
-    ? `<datalist id="${datalistId}">${repos.map((r) =>
-        `<option value="${escapeHtml(r.path)}" label="${escapeHtml(r.name)}"></option>`
-      ).join("")}</datalist>`
+    ? `<datalist id="${datalistId}">${repos
+        .map((r) => `<option value="${escapeHtml(r.path)}" label="${escapeHtml(r.name)}"></option>`)
+        .join("")}</datalist>`
     : `<datalist id="${datalistId}"></datalist>`;
 
   details.innerHTML = `
@@ -624,10 +638,7 @@ function newWorkForm() {
 // ─── SSE + init ─────────────────────────────────────────────────────────────
 
 async function init() {
-  const [itemsRes] = await Promise.all([
-    fetch("/api/items"),
-    loadRepos(),
-  ]);
+  const [itemsRes] = await Promise.all([fetch("/api/items"), loadRepos()]);
   for (const it of await itemsRes.json()) items.set(it.id, it);
 
   route();

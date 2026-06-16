@@ -16,7 +16,14 @@ export interface McpDeps {
 }
 
 const PHASES = [
-  "INTAKE", "INVESTIGATE", "PROPOSE", "PLAN", "EXECUTE", "DONE", "REJECTED", "FAILED",
+  "INTAKE",
+  "INVESTIGATE",
+  "PROPOSE",
+  "PLAN",
+  "EXECUTE",
+  "DONE",
+  "REJECTED",
+  "FAILED",
 ] as const;
 
 const UnitSchema = z.object({
@@ -61,7 +68,10 @@ export function buildMcpServer(deps: McpDeps): McpServer {
       if (!store.get(id)) {
         // Derive a human-readable branch slug at creation time; avoid collisions with existing items.
         const existingBranches = new Set(
-          store.list().map((item) => item.branch).filter(Boolean) as string[],
+          store
+            .list()
+            .map((item) => item.branch)
+            .filter(Boolean) as string[],
         );
         const branch = branchFor(title, id, existingBranches);
         store.create({ id, title, repoPath: absoluteRepoPath, request, origin, branch });
@@ -74,7 +84,8 @@ export function buildMcpServer(deps: McpDeps): McpServer {
   server.registerTool(
     "report_status",
     {
-      description: "Stream a status update for a work item (phase, log line, plan, proposal, units, branch).",
+      description:
+        "Stream a status update for a work item (phase, log line, plan, proposal, units, branch).",
       inputSchema: {
         id: z.string(),
         phase: z.enum(PHASES).optional(),

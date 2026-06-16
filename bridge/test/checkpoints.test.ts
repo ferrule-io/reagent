@@ -3,6 +3,7 @@ import { CheckpointStore } from "../src/checkpoints/checkpoints.js";
 
 describe("CheckpointStore", () => {
   let cp: CheckpointStore;
+  // biome-ignore lint/suspicious/noAssignInExpressions: standard vitest beforeEach assignment pattern
   beforeEach(() => (cp = new CheckpointStore()));
 
   it("returns pending when no decision arrives before timeout", async () => {

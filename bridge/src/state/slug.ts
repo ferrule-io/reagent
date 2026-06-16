@@ -34,11 +34,7 @@ export function slugify(title: string): string {
  * @param id             The work-item id (used as fallback if title is empty/junk).
  * @param existingBranches  The set of `branch` values already in use by other items.
  */
-export function branchFor(
-  title: string,
-  id: string,
-  existingBranches: Set<string>,
-): string {
+export function branchFor(title: string, id: string, existingBranches: Set<string>): string {
   const slug = slugify(title) || id;
   const base = `reagent/${slug}`;
 

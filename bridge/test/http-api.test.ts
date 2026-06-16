@@ -30,7 +30,9 @@ describe("HTTP API", () => {
   });
 
   it("lists items", async () => {
-    reg.upsert(store.create({ id: "a", title: "A", repoPath: "/r", request: "q", origin: "terminal" }));
+    reg.upsert(
+      store.create({ id: "a", title: "A", repoPath: "/r", request: "q", origin: "terminal" }),
+    );
     const res = await app.inject({ method: "GET", url: "/api/items" });
     expect(res.statusCode).toBe(200);
     expect(res.json().map((i: any) => i.id)).toEqual(["a"]);
@@ -81,7 +83,12 @@ describe("HTTP API", () => {
     cps.open("b", "cp_b", "approve?");
     store.update("b", (it) => {
       it.phase = "PROPOSE";
-      it.pendingCheckpoint = { id: "cp_b", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
+      it.pendingCheckpoint = {
+        id: "cp_b",
+        kind: "PROPOSE",
+        prompt: "approve?",
+        createdAt: new Date().toISOString(),
+      };
     });
     reg.upsert(store.get("b")!);
 
@@ -102,7 +109,12 @@ describe("HTTP API", () => {
     cps.open("d", "cp_d", "approve?");
     store.update("d", (it) => {
       it.phase = "PROPOSE";
-      it.pendingCheckpoint = { id: "cp_d", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
+      it.pendingCheckpoint = {
+        id: "cp_d",
+        kind: "PROPOSE",
+        prompt: "approve?",
+        createdAt: new Date().toISOString(),
+      };
     });
     reg.upsert(store.get("d")!);
 
@@ -121,7 +133,9 @@ describe("HTTP API", () => {
   });
 
   it("returns 409 when deciding an item with no pending checkpoint", async () => {
-    reg.upsert(store.create({ id: "c", title: "C", repoPath: "/r", request: "q", origin: "terminal" }));
+    reg.upsert(
+      store.create({ id: "c", title: "C", repoPath: "/r", request: "q", origin: "terminal" }),
+    );
     const res = await app.inject({
       method: "POST",
       url: "/api/items/c/decision",
@@ -135,7 +149,12 @@ describe("HTTP API", () => {
     cps.open("e", "cp_e", "approve?");
     store.update("e", (it) => {
       it.phase = "PROPOSE";
-      it.pendingCheckpoint = { id: "cp_e", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
+      it.pendingCheckpoint = {
+        id: "cp_e",
+        kind: "PROPOSE",
+        prompt: "approve?",
+        createdAt: new Date().toISOString(),
+      };
     });
     reg.upsert(store.get("e")!);
 
@@ -158,7 +177,12 @@ describe("HTTP API", () => {
     cps.open("f", "cp_f", "approve?");
     store.update("f", (it) => {
       it.phase = "PROPOSE";
-      it.pendingCheckpoint = { id: "cp_f", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
+      it.pendingCheckpoint = {
+        id: "cp_f",
+        kind: "PROPOSE",
+        prompt: "approve?",
+        createdAt: new Date().toISOString(),
+      };
     });
     reg.upsert(store.get("f")!);
 
@@ -275,7 +299,12 @@ describe("HTTP API — launcher wiring", () => {
   let repos: RepoStore;
   let reg: Registry;
   let cps: CheckpointStore;
-  let launcher: { starts: any[]; resumes: any[]; startAsync: (o: any) => void; resume: (o: any) => void };
+  let launcher: {
+    starts: any[];
+    resumes: any[];
+    startAsync: (o: any) => void;
+    resume: (o: any) => void;
+  };
   let app: ReturnType<typeof buildHttpServer>;
 
   beforeEach(() => {
@@ -287,8 +316,12 @@ describe("HTTP API — launcher wiring", () => {
     launcher = {
       starts: [],
       resumes: [],
-      startAsync(o) { this.starts.push(o); },
-      resume(o) { this.resumes.push(o); },
+      startAsync(o) {
+        this.starts.push(o);
+      },
+      resume(o) {
+        this.resumes.push(o);
+      },
     };
     app = buildHttpServer({ store, repos, registry: reg, checkpoints: cps, launcher });
   });
@@ -313,11 +346,20 @@ describe("HTTP API — launcher wiring", () => {
     cps.open("p", "cp_p", "approve?");
     store.update("p", (it) => {
       it.phase = "PROPOSE";
-      it.pendingCheckpoint = { id: "cp_p", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
+      it.pendingCheckpoint = {
+        id: "cp_p",
+        kind: "PROPOSE",
+        prompt: "approve?",
+        createdAt: new Date().toISOString(),
+      };
     });
     reg.upsert(store.get("p")!);
 
-    await app.inject({ method: "POST", url: "/api/items/p/decision", payload: { result: "approve" } });
+    await app.inject({
+      method: "POST",
+      url: "/api/items/p/decision",
+      payload: { result: "approve" },
+    });
     expect(launcher.resumes).toEqual([{ id: "p", repoPath: "/tmp/repo" }]);
   });
 
@@ -326,11 +368,20 @@ describe("HTTP API — launcher wiring", () => {
     cps.open("r", "cp_r", "propose?");
     store.update("r", (it) => {
       it.phase = "PROPOSE";
-      it.pendingCheckpoint = { id: "cp_r", kind: "PROPOSE", prompt: "propose?", createdAt: new Date().toISOString() };
+      it.pendingCheckpoint = {
+        id: "cp_r",
+        kind: "PROPOSE",
+        prompt: "propose?",
+        createdAt: new Date().toISOString(),
+      };
     });
     reg.upsert(store.get("r")!);
 
-    await app.inject({ method: "POST", url: "/api/items/r/decision", payload: { result: "revise", note: "try again" } });
+    await app.inject({
+      method: "POST",
+      url: "/api/items/r/decision",
+      payload: { result: "revise", note: "try again" },
+    });
     expect(launcher.resumes).toEqual([{ id: "r", repoPath: "/tmp/repo" }]);
   });
 
@@ -339,11 +390,20 @@ describe("HTTP API — launcher wiring", () => {
     cps.open("t", "cp_t", "approve?");
     store.update("t", (it) => {
       it.phase = "PROPOSE";
-      it.pendingCheckpoint = { id: "cp_t", kind: "PROPOSE", prompt: "approve?", createdAt: new Date().toISOString() };
+      it.pendingCheckpoint = {
+        id: "cp_t",
+        kind: "PROPOSE",
+        prompt: "approve?",
+        createdAt: new Date().toISOString(),
+      };
     });
     reg.upsert(store.get("t")!);
 
-    await app.inject({ method: "POST", url: "/api/items/t/decision", payload: { result: "approve" } });
+    await app.inject({
+      method: "POST",
+      url: "/api/items/t/decision",
+      payload: { result: "approve" },
+    });
     expect(launcher.resumes).toEqual([]);
   });
 });

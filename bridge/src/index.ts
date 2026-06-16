@@ -30,7 +30,8 @@ async function main() {
 
   const mcpDeps = { store, registry, checkpoints, checkpointPollMs: cfg.checkpointPollMs };
   // The reagent plugin is the repo root (this file lives at <repo>/bridge/{src,dist}/index).
-  const pluginDir = process.env.REAGENT_PLUGIN_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const pluginDir =
+    process.env.REAGENT_PLUGIN_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "..", "..");
   const launcher = new Launcher(spawn as unknown as SpawnLike, {
     pluginDir,
     permissionMode: cfg.launchPermissionMode,

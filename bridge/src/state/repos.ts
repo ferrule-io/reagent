@@ -37,8 +37,7 @@ export class RepoStore {
     const dup = existing.find((r) => r.path === trimmedPath);
     if (dup) return dup;
 
-    const resolvedName =
-      name && name.trim() ? name.trim() : basename(trimmedPath);
+    const resolvedName = name?.trim() ? name.trim() : basename(trimmedPath);
 
     const repo: Repo = {
       id: `repo_${randomUUID().slice(0, 8)}`,

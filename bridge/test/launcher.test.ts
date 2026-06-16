@@ -5,7 +5,12 @@ function recordingSpawn() {
   const calls: { cmd: string; args: string[]; opts: any }[] = [];
   const spawn: SpawnLike = (cmd, args, opts) => {
     calls.push({ cmd, args, opts });
-    return { on: () => {}, stdout: { on: () => {} }, stderr: { on: () => {} }, unref: () => {} } as any;
+    return {
+      on: () => {},
+      stdout: { on: () => {} },
+      stderr: { on: () => {} },
+      unref: () => {},
+    } as any;
   };
   return { calls, spawn };
 }
@@ -20,12 +25,18 @@ const FLAGS = {
 describe("Launcher", () => {
   it("spawns claude -p start-async with the given id in the target repo", () => {
     const { calls, spawn } = recordingSpawn();
-    new Launcher(spawn, FLAGS).startAsync({ id: "wi_1", repoPath: "/tmp/repo", request: "do the thing" });
+    new Launcher(spawn, FLAGS).startAsync({
+      id: "wi_1",
+      repoPath: "/tmp/repo",
+      request: "do the thing",
+    });
     expect(calls).toHaveLength(1);
     const c = calls[0];
     expect(c.cmd).toBe("claude");
     expect(c.args).toContain("-p");
-    expect(c.args.join(" ")).toContain("reagent:reagent-pipeline skill with arguments: start-async wi_1 /tmp/repo");
+    expect(c.args.join(" ")).toContain(
+      "reagent:reagent-pipeline skill with arguments: start-async wi_1 /tmp/repo",
+    );
     expect(c.args.join(" ")).toContain("do the thing");
     expect(c.args).toContain("--permission-mode");
     expect(c.args).toContain("acceptEdits");
@@ -41,7 +52,9 @@ describe("Launcher", () => {
     const { calls, spawn } = recordingSpawn();
     new Launcher(spawn, FLAGS).resume({ id: "wi_2", repoPath: "/tmp/repo" });
     const c = calls[0];
-    expect(c.args.join(" ")).toContain("reagent:reagent-pipeline skill with arguments: resume wi_2");
+    expect(c.args.join(" ")).toContain(
+      "reagent:reagent-pipeline skill with arguments: resume wi_2",
+    );
     expect(c.opts.cwd).toBe("/tmp/repo");
   });
 });

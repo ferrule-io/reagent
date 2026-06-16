@@ -45,7 +45,13 @@ describe("MCP server tools", () => {
   it("derives a human-readable branch at creation time", async () => {
     await client.callTool({
       name: "register_work_item",
-      arguments: { id: "wi_br1", title: "Fix the login bug", repoPath: "/r", request: "q", origin: "terminal" },
+      arguments: {
+        id: "wi_br1",
+        title: "Fix the login bug",
+        repoPath: "/r",
+        request: "q",
+        origin: "terminal",
+      },
     });
     expect(store.get("wi_br1")?.branch).toBe("reagent/fix-the-login-bug");
   });
@@ -53,11 +59,23 @@ describe("MCP server tools", () => {
   it("disambiguates duplicate title branches with a numeric suffix", async () => {
     await client.callTool({
       name: "register_work_item",
-      arguments: { id: "wi_dup1", title: "Add dark mode", repoPath: "/r", request: "q", origin: "terminal" },
+      arguments: {
+        id: "wi_dup1",
+        title: "Add dark mode",
+        repoPath: "/r",
+        request: "q",
+        origin: "terminal",
+      },
     });
     await client.callTool({
       name: "register_work_item",
-      arguments: { id: "wi_dup2", title: "Add dark mode", repoPath: "/r", request: "q", origin: "terminal" },
+      arguments: {
+        id: "wi_dup2",
+        title: "Add dark mode",
+        repoPath: "/r",
+        request: "q",
+        origin: "terminal",
+      },
     });
     expect(store.get("wi_dup1")?.branch).toBe("reagent/add-dark-mode");
     expect(store.get("wi_dup2")?.branch).toBe("reagent/add-dark-mode-2");
@@ -66,13 +84,25 @@ describe("MCP server tools", () => {
   it("does not overwrite branch on refresh/re-register of existing item", async () => {
     await client.callTool({
       name: "register_work_item",
-      arguments: { id: "wi_ref", title: "My feature", repoPath: "/r", request: "q", origin: "terminal" },
+      arguments: {
+        id: "wi_ref",
+        title: "My feature",
+        repoPath: "/r",
+        request: "q",
+        origin: "terminal",
+      },
     });
     const first = store.get("wi_ref")?.branch;
     // Re-register (refresh)
     await client.callTool({
       name: "register_work_item",
-      arguments: { id: "wi_ref", title: "My feature", repoPath: "/r", request: "q", origin: "terminal" },
+      arguments: {
+        id: "wi_ref",
+        title: "My feature",
+        repoPath: "/r",
+        request: "q",
+        origin: "terminal",
+      },
     });
     expect(store.get("wi_ref")?.branch).toBe(first);
   });
@@ -101,7 +131,13 @@ describe("MCP server tools", () => {
   it("keeps already-absolute repoPath unchanged", async () => {
     await client.callTool({
       name: "register_work_item",
-      arguments: { id: "wi_abs", title: "T", repoPath: "/absolute/path", request: "q", origin: "terminal" },
+      arguments: {
+        id: "wi_abs",
+        title: "T",
+        repoPath: "/absolute/path",
+        request: "q",
+        origin: "terminal",
+      },
     });
     expect(store.get("wi_abs")?.repoPath).toBe("/absolute/path");
   });
@@ -127,7 +163,13 @@ describe("MCP server tools", () => {
       arguments: { id: "wi_prop", title: "T", repoPath: "/r", request: "q", origin: "terminal" },
     });
     const units = [
-      { id: "u1", title: "Unit 1", scope: ["src/**"], planDocPath: "docs/reagent/wi_prop/u1.md", dependsOn: [] },
+      {
+        id: "u1",
+        title: "Unit 1",
+        scope: ["src/**"],
+        planDocPath: "docs/reagent/wi_prop/u1.md",
+        dependsOn: [],
+      },
     ];
     await client.callTool({
       name: "report_status",
