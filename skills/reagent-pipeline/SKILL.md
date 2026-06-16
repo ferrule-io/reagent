@@ -52,8 +52,7 @@ report_status({ id, phase: "PLAN", line: "plan decomposed into N units", units: 
 ```
 
 ## EXECUTE (shared, delegated + scoped)
-Delegate to the `reagent-executor` subagent (Agent tool / `@agent-reagent-executor`), passing the work item `id`, the `repoPath`,
-the approved `plan`/`units`, and the branch `reagent/<id>`. The subagent makes changes on that branch, commits locally, and reports status.
+Fetch the item's `branch` field: `curl -s http://localhost:4319/api/items/<id>` (same call used in `resume`). Pass that stored branch value to the `reagent-executor` subagent (Agent tool / `@agent-reagent-executor`) along with the work item `id`, the `repoPath`, and the approved `plan`/`units`. The subagent makes changes on that branch, commits locally, and reports status.
 When it finishes, call `complete_work_item({ id, phase: "DONE" })` and report the branch + a one-line summary.
 (Per-unit parallel execution via worktrees is a future milestone; for now a single-pass execution proceeds over all units.)
 Do not push — PRs are a later milestone.
@@ -98,13 +97,13 @@ Do not push — PRs are a later milestone.
      - `revise` → incorporate `decision.note` from `pendingCheckpoint.decision`, regenerate proposal incorporating existing `feedback[]`, call `report_status({ id, phase: "PROPOSE", proposal })`, then call `await_decision` **once**; pending → end your turn; decided → handle.
      - `reject` → `complete_work_item({ id, phase: "REJECTED" })`.
    - `phase` PLAN (in progress, no units yet) → run **PLAN** (shared step), then **EXECUTE**.
-   - `phase` EXECUTE (in progress) → **EXECUTE** (shared step) on `reagent/<id>` (the executor is idempotent on its own branch).
+   - `phase` EXECUTE (in progress) → **EXECUTE** (shared step) on the item's `branch` (already fetched from the API response; the executor is idempotent on its own branch).
    - `pendingCheckpoint` present but **undecided** → call `await_decision({ id, prompt: pendingCheckpoint.prompt })` **once**; pending → end your turn; decided → handle as above.
    - `phase` INVESTIGATE with no plan → run **INVESTIGATE**, then open the gate as in `start-async` step 3 (call once, exit if pending).
    - `phase` PROPOSE with no pending checkpoint (e.g. after revise was processed) → regenerate proposal (using accumulated `feedback[]`), `report_status`, call `await_decision` once, exit if pending.
 
 ## Guardrails
-- INVESTIGATE never edits. Only EXECUTE (via the scoped subagent) edits, only on `reagent/<id>`, never pushing.
+- INVESTIGATE never edits. Only EXECUTE (via the scoped subagent) edits, only on the item's `branch`, never pushing.
 - Thread the work item `id` through every bridge call.
 - Keep `report_status` lines short and human-readable — they show up live in the bridge UI.
 - **Async mode (`start-async`/`resume`) is short-lived: do exactly one step (open the gate, or execute), then end your turn. Never poll in async mode — the bridge re-launches you on the human's decision.**
