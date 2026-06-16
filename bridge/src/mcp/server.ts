@@ -1,7 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { resolve, isAbsolute } from "node:path";
+import { resolve, isAbsolute, join } from "node:path";
+import { mkdirSync } from "node:fs";
+import { execSync } from "node:child_process";
 import type { StateStore } from "../state/store.js";
 import type { Registry } from "../registry/registry.js";
 import type { CheckpointStore } from "../checkpoints/checkpoints.js";
@@ -13,6 +15,7 @@ export interface McpDeps {
   registry: Registry;
   checkpoints: CheckpointStore;
   checkpointPollMs: number;
+  worktreesDir: string;
 }
 
 const PHASES = [
@@ -39,7 +42,7 @@ function json(value: unknown) {
 }
 
 export function buildMcpServer(deps: McpDeps): McpServer {
-  const { store, registry, checkpoints, checkpointPollMs } = deps;
+  const { store, registry, checkpoints, checkpointPollMs, worktreesDir } = deps;
   const server = new McpServer({ name: "reagent-bridge", version: "0.0.1" });
 
   const touch = (id: string) => {
@@ -74,7 +77,9 @@ export function buildMcpServer(deps: McpDeps): McpServer {
             .filter(Boolean) as string[],
         );
         const branch = branchFor(title, id, existingBranches);
-        store.create({ id, title, repoPath: absoluteRepoPath, request, origin, branch });
+        mkdirSync(worktreesDir, { recursive: true });
+        const worktreePath = join(worktreesDir, id);
+        store.create({ id, title, repoPath: absoluteRepoPath, request, origin, branch, worktreePath });
       }
       touch(id);
       return json({ ok: true });
@@ -187,6 +192,17 @@ export function buildMcpServer(deps: McpDeps): McpServer {
         it.pendingCheckpoint = undefined;
       });
       touch(id);
+      const item = store.get(id);
+      if (item?.worktreePath) {
+        try {
+          execSync(`git worktree remove --force "${item.worktreePath}"`, {
+            cwd: item.repoPath,
+            stdio: "ignore",
+          });
+        } catch {
+          // best-effort: worktree may not have been initialized yet (e.g. item failed before EXECUTE)
+        }
+      }
       return json({ ok: true });
     },
   );
