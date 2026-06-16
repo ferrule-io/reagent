@@ -1,5 +1,5 @@
 export interface Decision {
-  result: "approve" | "reject";
+  result: "approve" | "reject" | "revise";
   note?: string;
 }
 

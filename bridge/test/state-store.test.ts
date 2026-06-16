@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StateStore } from "../src/state/store.js";
+import { RepoStore } from "../src/state/repos.js";
 
 describe("StateStore", () => {
   let dir: string;
@@ -43,10 +44,22 @@ describe("StateStore", () => {
     expect(updated.updatedAt).not.toBe(before);
   });
 
-  it("lists all persisted items, ignoring non-yaml files", () => {
-    store.create({ id: "a", title: "a", repoPath: "/r", request: "q", origin: "terminal" });
-    store.create({ id: "b", title: "b", repoPath: "/r", request: "q", origin: "phone" });
+  it("lists all persisted work items (wi_*.yaml only), ignoring other yaml files", () => {
+    store.create({ id: "wi_a", title: "a", repoPath: "/r", request: "q", origin: "terminal" });
+    store.create({ id: "wi_b", title: "b", repoPath: "/r", request: "q", origin: "phone" });
     const ids = store.list().map((i) => i.id).sort();
-    expect(ids).toEqual(["a", "b"]);
+    expect(ids).toEqual(["wi_a", "wi_b"]);
+  });
+
+  it("does NOT include repos.yaml entries in StateStore.list()", () => {
+    // Simulate RepoStore writing repos.yaml into the same stateDir
+    const repoStore = new RepoStore(dir);
+    repoStore.add({ name: "myrepo", path: "/some/path" });
+
+    store.create({ id: "wi_x", title: "X", repoPath: "/r", request: "q", origin: "terminal" });
+
+    const items = store.list();
+    expect(items).toHaveLength(1);
+    expect(items[0].id).toBe("wi_x");
   });
 });

@@ -151,6 +151,41 @@
       .markdown a { color: #c89; text-decoration: underline; }
       .markdown a:hover { color: #e8b0a0; }
 
+      /* ── Repos panel ── */
+      .repos-panel { margin-bottom: 10px; }
+      .repos-content { padding: 8px 0; }
+      .repos-empty { color: #666; font-size: 13px; margin: 4px 0 8px; }
+      .repos-list { list-style: none; margin: 0 0 10px; padding: 0; }
+      .repo-item {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        padding: 6px 0;
+        border-bottom: 1px solid #2a2520;
+        font-size: 13px;
+      }
+      .repo-item:last-child { border-bottom: 0; }
+      .repo-name { color: #eee; font-weight: 600; white-space: nowrap; }
+      .repo-path { color: #888; flex: 1; word-break: break-all; font-size: 12px; }
+      .repo-remove {
+        font-size: 12px;
+        padding: 3px 8px;
+        background: #3a2520;
+        color: #d9735c;
+        border-radius: 4px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .add-repo-row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-top: 6px;
+      }
+      .add-repo-row input { flex: 1; min-width: 120px; margin: 2px 0; }
+      .add-repo-row button { flex-shrink: 0; }
+
       /* ── Activity log ── */
       .log-section { margin-top: 20px; }
       .log-title {
@@ -191,11 +226,17 @@
   <body>
     <header>reagent</header>
     <main>
+      <!-- Repos panel and Start new work form are rebuilt by app.js at runtime.
+           The markup below is an initial skeleton; app.js replaces it immediately. -->
+      <details class="repos-panel">
+        <summary>Repos</summary>
+      </details>
       <details>
         <summary>Start new work</summary>
         <form id="new">
           <input name="title" placeholder="title" required />
-          <input name="repoPath" placeholder="/path/to/repo" required />
+          <datalist id="repo-datalist"></datalist>
+          <input name="repoPath" placeholder="/path/to/repo" list="repo-datalist" required />
           <textarea name="request" placeholder="what needs doing?" required></textarea>
           <button type="submit">Start</button>
         </form>

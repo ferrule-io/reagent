@@ -15,7 +15,8 @@ export class Watcher {
   async start(): Promise<void> {
     this.fsw = chokidar.watch(this.dir, { ignoreInitial: false });
     const onChange = (path: string) => {
-      if (!path.endsWith(".yaml")) return;
+      const name = basename(path);
+      if (!name.startsWith("wi_") || !name.endsWith(".yaml")) return;
       const id = basename(path, ".yaml");
       const item = this.store.get(id);
       if (item) this.registry.upsert(item);

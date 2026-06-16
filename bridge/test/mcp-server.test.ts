@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, isAbsolute } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { StateStore } from "../src/state/store.js";
@@ -42,6 +42,35 @@ describe("MCP server tools", () => {
     expect(reg.get("wi_1")?.title).toBe("T");
   });
 
+  it("resolves '.' repoPath to an absolute path (current working directory)", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_dot", title: "T", repoPath: ".", request: "q", origin: "terminal" },
+    });
+    const stored = store.get("wi_dot");
+    expect(stored).toBeTruthy();
+    expect(isAbsolute(stored!.repoPath)).toBe(true);
+    expect(stored!.repoPath).toBe(process.cwd());
+  });
+
+  it("resolves empty repoPath to current working directory", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_empty", title: "T", repoPath: "", request: "q", origin: "terminal" },
+    });
+    const stored = store.get("wi_empty");
+    expect(stored).toBeTruthy();
+    expect(isAbsolute(stored!.repoPath)).toBe(true);
+  });
+
+  it("keeps already-absolute repoPath unchanged", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_abs", title: "T", repoPath: "/absolute/path", request: "q", origin: "terminal" },
+    });
+    expect(store.get("wi_abs")?.repoPath).toBe("/absolute/path");
+  });
+
   it("report_status updates phase and appends a log line", async () => {
     await client.callTool({
       name: "register_work_item",
@@ -55,6 +84,25 @@ describe("MCP server tools", () => {
     expect(it.phase).toBe("INVESTIGATE");
     expect(it.plan).toBe("do X");
     expect(it.log.at(-1)?.line).toBe("reading code");
+  });
+
+  it("report_status persists proposal and units", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_prop", title: "T", repoPath: "/r", request: "q", origin: "terminal" },
+    });
+    const units = [
+      { id: "u1", title: "Unit 1", scope: ["src/**"], planDocPath: "docs/reagent/wi_prop/u1.md", dependsOn: [] },
+    ];
+    await client.callTool({
+      name: "report_status",
+      arguments: { id: "wi_prop", phase: "PLAN", proposal: "my proposal", units },
+    });
+    const stored = store.get("wi_prop")!;
+    expect(stored.phase).toBe("PLAN");
+    expect(stored.proposal).toBe("my proposal");
+    expect(stored.units).toHaveLength(1);
+    expect(stored.units![0].title).toBe("Unit 1");
   });
 
   it("await_decision returns pending, then decided after resolve", async () => {
@@ -79,5 +127,67 @@ describe("MCP server tools", () => {
     const payload = JSON.parse(textOf(second));
     expect(payload.status).toBe("decided");
     expect(payload.decision.result).toBe("approve");
+  });
+
+  it("await_decision opens a fresh checkpoint after a revise and appends feedback", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_rev", title: "T", repoPath: "/r", request: "q", origin: "terminal" },
+    });
+
+    // First gate: open and resolve with revise
+    await client.callTool({
+      name: "await_decision",
+      arguments: { id: "wi_rev", prompt: "first proposal" },
+    });
+    const firstCpId = store.get("wi_rev")!.pendingCheckpoint!.id;
+    cps.resolve(firstCpId, { result: "revise", note: "change the approach" });
+
+    // Collect the revise decision
+    const reviseResult = await client.callTool({
+      name: "await_decision",
+      arguments: { id: "wi_rev", prompt: "first proposal" },
+    });
+    const reviseParsed = JSON.parse(textOf(reviseResult));
+    expect(reviseParsed.status).toBe("decided");
+    expect(reviseParsed.decision.result).toBe("revise");
+
+    // Feedback should be appended
+    const afterRevise = store.get("wi_rev")!;
+    expect(afterRevise.feedback).toHaveLength(1);
+    expect(afterRevise.feedback![0].note).toBe("change the approach");
+    expect(afterRevise.phase).toBe("PROPOSE");
+
+    // Re-propose: await_decision again should open a FRESH checkpoint
+    const reproposeCall = client.callTool({
+      name: "await_decision",
+      arguments: { id: "wi_rev", prompt: "revised proposal" },
+    });
+    // Give it time to open the gate
+    await new Promise((r) => setTimeout(r, 10));
+
+    const newItem = store.get("wi_rev")!;
+    const newCpId = newItem.pendingCheckpoint!.id;
+    expect(newCpId).not.toBe(firstCpId); // fresh checkpoint
+
+    // Resolve fresh gate with approve
+    cps.resolve(newCpId, { result: "approve" });
+    const approveResult = await reproposeCall;
+    const approveParsed = JSON.parse(textOf(approveResult));
+    expect(approveParsed.status).toBe("decided");
+    expect(approveParsed.decision.result).toBe("approve");
+  });
+
+  it("await_decision sets phase to PROPOSE when opening a gate", async () => {
+    await client.callTool({
+      name: "register_work_item",
+      arguments: { id: "wi_phase", title: "T", repoPath: "/r", request: "q", origin: "terminal" },
+    });
+    await client.callTool({
+      name: "await_decision",
+      arguments: { id: "wi_phase", prompt: "proposal here" },
+    });
+    expect(store.get("wi_phase")!.phase).toBe("PROPOSE");
+    expect(store.get("wi_phase")!.pendingCheckpoint!.kind).toBe("PROPOSE");
   });
 });

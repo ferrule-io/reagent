@@ -1,4 +1,5 @@
 const items = new Map();
+let repos = [];
 
 // ─── Routing ────────────────────────────────────────────────────────────────
 
@@ -33,11 +34,98 @@ async function route() {
   }
 }
 
+// ─── Repo helpers ────────────────────────────────────────────────────────────
+
+async function loadRepos() {
+  try {
+    const res = await fetch("/api/repos");
+    if (res.ok) repos = await res.json();
+  } catch (_) {}
+}
+
+async function refreshRepos() {
+  await loadRepos();
+  const r = currentRoute();
+  if (r.view === "list") renderListPage();
+}
+
+function reposPanel() {
+  const details = document.createElement("details");
+  details.className = "repos-panel";
+  details.innerHTML = `<summary>Repos</summary>`;
+
+  const content = document.createElement("div");
+  content.className = "repos-content";
+
+  if (repos.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "repos-empty";
+    empty.textContent = "No repos saved yet.";
+    content.appendChild(empty);
+  } else {
+    const list = document.createElement("ul");
+    list.className = "repos-list";
+    for (const r of repos) {
+      const li = document.createElement("li");
+      li.className = "repo-item";
+      const nameEl = document.createElement("span");
+      nameEl.className = "repo-name";
+      nameEl.textContent = r.name;
+      const pathEl = document.createElement("span");
+      pathEl.className = "repo-path";
+      pathEl.textContent = r.path;
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "repo-remove";
+      removeBtn.textContent = "Remove";
+      removeBtn.onclick = async () => {
+        await fetch(`/api/repos/${r.id}`, { method: "DELETE" });
+        await refreshRepos();
+      };
+      li.appendChild(nameEl);
+      li.appendChild(pathEl);
+      li.appendChild(removeBtn);
+      list.appendChild(li);
+    }
+    content.appendChild(list);
+  }
+
+  // Add repo form
+  const addForm = document.createElement("form");
+  addForm.id = "add-repo";
+  addForm.innerHTML = `
+    <div class="add-repo-row">
+      <input name="name" placeholder="name (optional)" />
+      <input name="path" placeholder="/path/to/repo" required />
+      <button type="submit">Add</button>
+    </div>
+  `;
+  addForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const name = f.get("name") || "";
+    const path = f.get("path") || "";
+    if (!path.trim()) return;
+    await fetch("/api/repos", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, path }),
+    });
+    e.target.reset();
+    await refreshRepos();
+  });
+  content.appendChild(addForm);
+
+  details.appendChild(content);
+  return details;
+}
+
 // ─── List page ──────────────────────────────────────────────────────────────
 
 function renderListPage() {
   const main = document.querySelector("main");
   main.innerHTML = "";
+
+  main.appendChild(reposPanel());
 
   const newWork = newWorkForm();
   main.appendChild(newWork);
@@ -86,7 +174,7 @@ function card(it) {
 
 // ─── Job page ───────────────────────────────────────────────────────────────
 
-const PIPELINE_STAGES = ["INTAKE", "INVESTIGATE", "PLAN_APPROVAL", "EXECUTE", "DONE"];
+const PIPELINE_STAGES = ["INTAKE", "INVESTIGATE", "PROPOSE", "PLAN", "EXECUTE", "DONE"];
 const TERMINAL_ERROR = ["REJECTED", "FAILED"];
 
 function renderJobPage(id) {
@@ -126,21 +214,99 @@ function renderJobPage(id) {
   fields.appendChild(labeledField("Request", escapeHtml(it.request), "pre"));
   fields.appendChild(labeledField("Repo", escapeHtml(it.repoPath), "code"));
   if (it.branch) fields.appendChild(labeledField("Branch", escapeHtml(it.branch), "code"));
-  if (it.plan) {
+
+  // Show proposal (preferred) or legacy plan as markdown
+  const proposalText = it.proposal || it.plan;
+  if (proposalText) {
     const planWrap = document.createElement("div");
     planWrap.className = "field";
     const planLabel = document.createElement("div");
     planLabel.className = "field-label";
-    planLabel.textContent = "Plan";
+    planLabel.textContent = it.proposal ? "Proposal" : "Plan";
     const planVal = document.createElement("div");
     planVal.className = "field-value markdown";
-    planVal.innerHTML = renderMarkdown(it.plan);
+    planVal.innerHTML = renderMarkdown(proposalText);
     planWrap.appendChild(planLabel);
     planWrap.appendChild(planVal);
     fields.appendChild(planWrap);
   }
 
   main.appendChild(fields);
+
+  // Revise feedback trail
+  if ((it.feedback || []).length > 0) {
+    const feedbackSection = document.createElement("div");
+    feedbackSection.className = "feedback-section";
+    const feedbackTitle = document.createElement("div");
+    feedbackTitle.className = "feedback-title";
+    feedbackTitle.textContent = "Revision feedback";
+    feedbackSection.appendChild(feedbackTitle);
+    const feedbackList = document.createElement("ol");
+    feedbackList.className = "feedback-list";
+    for (const fb of it.feedback) {
+      const li = document.createElement("li");
+      li.className = "feedback-entry";
+      const ts = document.createElement("span");
+      ts.className = "feedback-ts";
+      ts.textContent = formatTs(fb.at);
+      const note = document.createElement("span");
+      note.className = "feedback-note";
+      note.textContent = fb.note;
+      li.appendChild(ts);
+      li.appendChild(note);
+      feedbackList.appendChild(li);
+    }
+    feedbackSection.appendChild(feedbackList);
+    main.appendChild(feedbackSection);
+  }
+
+  // Units of work
+  if ((it.units || []).length > 0) {
+    const unitsSection = document.createElement("div");
+    unitsSection.className = "units-section";
+    const unitsTitle = document.createElement("div");
+    unitsTitle.className = "units-title";
+    unitsTitle.textContent = "Units of work";
+    unitsSection.appendChild(unitsTitle);
+    const unitsList = document.createElement("ul");
+    unitsList.className = "units-list";
+    for (const unit of it.units) {
+      const li = document.createElement("li");
+      li.className = "unit-item";
+
+      const unitTitle = document.createElement("strong");
+      unitTitle.className = "unit-title";
+      unitTitle.textContent = unit.title;
+      li.appendChild(unitTitle);
+
+      if (unit.scope && unit.scope.length > 0) {
+        const scopeEl = document.createElement("div");
+        scopeEl.className = "unit-scope";
+        scopeEl.textContent = "Scope: " + unit.scope.join(", ");
+        li.appendChild(scopeEl);
+      }
+
+      if (unit.dependsOn && unit.dependsOn.length > 0) {
+        const depsEl = document.createElement("div");
+        depsEl.className = "unit-deps";
+        depsEl.textContent = "Depends on: " + unit.dependsOn.join(", ");
+        li.appendChild(depsEl);
+      }
+
+      if (unit.planDocPath) {
+        const docEl = document.createElement("div");
+        docEl.className = "unit-doc";
+        const docCode = document.createElement("code");
+        docCode.textContent = unit.planDocPath;
+        docEl.appendChild(docCode);
+        li.appendChild(docEl);
+      }
+
+      unitsList.appendChild(li);
+    }
+    unitsSection.appendChild(unitsList);
+    main.appendChild(unitsSection);
+  }
 
   // Checkpoint gate
   const gate = it.pendingCheckpoint && !it.pendingCheckpoint.decision;
@@ -232,7 +398,8 @@ function stageLabel(stage) {
   const map = {
     INTAKE: "Intake",
     INVESTIGATE: "Investigate",
-    PLAN_APPROVAL: "Plan",
+    PROPOSE: "Propose",
+    PLAN: "Plan",
     EXECUTE: "Execute",
     DONE: "Done",
     REJECTED: "Rejected",
@@ -276,8 +443,8 @@ function gateCommentBox() {
 }
 
 /**
- * Build Approve/Reject buttons. Both read the shared textarea at click time
- * and pass its value as the note to decide().
+ * Build Approve / Revise / Reject buttons. All three read the shared textarea
+ * at click time and pass its value as the note. Revise posts result:'revise'.
  */
 function decisionButtons(id, textarea) {
   const wrap = document.createElement("div");
@@ -286,11 +453,15 @@ function decisionButtons(id, textarea) {
     const note = textarea.value.trim() || undefined;
     decide(id, "approve", note);
   });
+  const revise = button("Revise", "revise", () => {
+    const note = textarea.value.trim() || undefined;
+    decide(id, "revise", note);
+  });
   const reject = button("Reject", "reject", () => {
     const note = textarea.value.trim() || undefined;
     decide(id, "reject", note);
   });
-  wrap.append(approve, " ", reject);
+  wrap.append(approve, " ", revise, " ", reject);
   return wrap;
 }
 
@@ -417,11 +588,22 @@ function inlineMarkdown(raw) {
 
 function newWorkForm() {
   const details = document.createElement("details");
+
+  // Build the repo path field: datalist + text input so users can pick saved
+  // repos or type any path freely (works even when no repos are saved yet).
+  const datalistId = "repo-datalist";
+  const datalistHtml = repos.length
+    ? `<datalist id="${datalistId}">${repos.map((r) =>
+        `<option value="${escapeHtml(r.path)}" label="${escapeHtml(r.name)}"></option>`
+      ).join("")}</datalist>`
+    : `<datalist id="${datalistId}"></datalist>`;
+
   details.innerHTML = `
     <summary>Start new work</summary>
     <form id="new">
       <input name="title" placeholder="title" required />
-      <input name="repoPath" placeholder="/path/to/repo" required />
+      ${datalistHtml}
+      <input name="repoPath" placeholder="/path/to/repo" list="${datalistId}" required />
       <textarea name="request" placeholder="what needs doing?" required></textarea>
       <button type="submit">Start</button>
     </form>
@@ -442,8 +624,11 @@ function newWorkForm() {
 // ─── SSE + init ─────────────────────────────────────────────────────────────
 
 async function init() {
-  const res = await fetch("/api/items");
-  for (const it of await res.json()) items.set(it.id, it);
+  const [itemsRes] = await Promise.all([
+    fetch("/api/items"),
+    loadRepos(),
+  ]);
+  for (const it of await itemsRes.json()) items.set(it.id, it);
 
   route();
 
