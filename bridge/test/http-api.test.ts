@@ -1,7 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+// Stub worktree helpers so tests do not shell out to real git.
+vi.mock("../src/state/worktree.js", () => ({
+  resolveBaseBranch: (_repoPath: string, override?: string) => override ?? "origin/development",
+  provisionWorktree: (opts: { worktreesDir: string; branchSlug: string }) =>
+    join(opts.worktreesDir, opts.branchSlug),
+}));
 import { StateStore } from "../src/state/store.js";
 import { RepoStore } from "../src/state/repos.js";
 import { Registry } from "../src/registry/registry.js";
@@ -55,6 +62,8 @@ describe("HTTP API", () => {
     expect(body.origin).toBe("phone");
     expect(body.phase).toBe("INTAKE");
     expect(store.get(body.id)?.request).toBe("fix it");
+    // baseBranch is persisted from the (mocked) resolveBaseBranch
+    expect(body.baseBranch).toBe("origin/development");
   });
 
   it("derives a human-readable branch when creating a phone-origin item", async () => {
@@ -67,6 +76,9 @@ describe("HTTP API", () => {
     const body = res.json();
     expect(body.branch).toBe("reagent/improve-onboarding-flow");
     expect(store.get(body.id)?.branch).toBe("reagent/improve-onboarding-flow");
+    // worktreePath is keyed by slug, not by item id
+    const wt = store.get(body.id)?.worktreePath ?? "";
+    expect(wt.endsWith("improve-onboarding-flow")).toBe(true);
   });
 
   it("disambiguates duplicate phone-origin branches with a numeric suffix", async () => {
