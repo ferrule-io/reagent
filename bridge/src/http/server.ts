@@ -74,7 +74,15 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
     const branch = branchFor(title, id, existingBranches);
     mkdirSync(worktreesDir, { recursive: true });
     const worktreePath = join(worktreesDir, id);
-    const item = store.create({ id, title, repoPath, request, origin: "phone", branch, worktreePath });
+    const item = store.create({
+      id,
+      title,
+      repoPath,
+      request,
+      origin: "phone",
+      branch,
+      worktreePath,
+    });
     registry.upsert(item);
     // Launch a headless session to drive this work item (investigate -> open gate -> exit).
     launcher?.startAsync({ id, repoPath, request });

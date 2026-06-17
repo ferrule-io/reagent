@@ -28,7 +28,13 @@ async function main() {
     if (cp && !cp.decision) checkpoints.open(item.id, cp.id, cp.prompt);
   }
 
-  const mcpDeps = { store, registry, checkpoints, checkpointPollMs: cfg.checkpointPollMs, worktreesDir: cfg.worktreesDir };
+  const mcpDeps = {
+    store,
+    registry,
+    checkpoints,
+    checkpointPollMs: cfg.checkpointPollMs,
+    worktreesDir: cfg.worktreesDir,
+  };
   // The reagent plugin is the repo root (this file lives at <repo>/bridge/{src,dist}/index).
   const pluginDir =
     process.env.REAGENT_PLUGIN_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -37,7 +43,14 @@ async function main() {
     permissionMode: cfg.launchPermissionMode,
     allowedTools: cfg.launchAllowedTools,
   });
-  const app = buildHttpServer({ store, repos, registry, checkpoints, launcher, worktreesDir: cfg.worktreesDir });
+  const app = buildHttpServer({
+    store,
+    repos,
+    registry,
+    checkpoints,
+    launcher,
+    worktreesDir: cfg.worktreesDir,
+  });
 
   // Mount the MCP server at /mcp using stateless Streamable HTTP transport.
   // Per-request pattern: each POST creates a fresh transport + server instance
