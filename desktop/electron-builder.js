@@ -57,6 +57,20 @@ module.exports = {
       from: 'build/tray-icon@2x.png',
       to: 'tray-icon@2x.png',
     },
+    // Plugin files — bundled from repo root so the bridge can install them
+    // from disk without any GitHub dependency.  Resolves at runtime as:
+    //   path.join(process.resourcesPath, 'plugin', ...)
+    {
+      from: '../',
+      to: 'plugin',
+      filter: [
+        '.claude-plugin/**',
+        'skills/**',
+        'agents/**',
+        'commands/**',
+        '.mcp.json',
+      ],
+    },
   ],
 
   mac: {
