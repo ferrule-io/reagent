@@ -121,7 +121,21 @@ jobs:
             desktop/out/*.zip
           fail_on_unmatched_files: true
 
-      # Step 5 (fallback): Upload artifacts on manual workflow_dispatch
+      # Step 6: Update the Homebrew formula to track this release
+      - name: Update Homebrew formula version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: bash scripts/update-formula-version.sh
+
+      - name: Commit updated formula
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/reagent-bridge.rb
+          git diff --cached --quiet || git commit -m "chore: update Homebrew formula to ${GITHUB_REF_NAME}"
+          git push origin HEAD:development
+
+      # Step 7 (fallback): Upload artifacts on manual workflow_dispatch
       - name: Upload macOS installers (manual build)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7

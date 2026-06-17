@@ -79,6 +79,22 @@ Or push both at once: `git push --follow-tags origin development`.
 
 Pushing the tag is what starts the build. The branch push alone does **not**.
 
+## (Automatic) Homebrew formula update
+
+After pushing the tag, the **Package Desktop** workflow automatically:
+1. Downloads the source tarball for the new tag.
+2. Updates `Formula/reagent-bridge.rb` with the new `url` and `sha256`.
+3. Commits and pushes the updated formula to `development`.
+
+No manual formula update is required. If the CI step fails (e.g. network error), run it manually:
+
+```sh
+bash scripts/update-formula-version.sh
+git add Formula/reagent-bridge.rb
+git commit -m "chore: update Homebrew formula to vX.Y.Z"
+git push origin development
+```
+
 ## 4. Watch the build
 
 ```sh
