@@ -1,14 +1,14 @@
 {
   "name": "reagent-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Electron menu-bar app that boots and supervises the reagent bridge server",
   "author": "reagent",
   "main": "dist/main.js",
   "scripts": {
-    "build":         "tsc -p tsconfig.json",
-    "app:dev":       "npm run build && electron .",
-    "app:build":     "npm run build && electron-builder --mac",
+    "build": "tsc -p tsconfig.json",
+    "app:dev": "npm run build && electron .",
+    "app:build": "npm run build && electron-builder --mac",
     "app:build:all": "npm run build && electron-builder --mac --win --linux"
   },
   "devDependencies": {
