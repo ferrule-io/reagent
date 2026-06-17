@@ -24,9 +24,7 @@ describe("resolveBaseBranch", () => {
   });
 
   it("resolves via git symbolic-ref and strips refs/remotes/ prefix when no override given", () => {
-    vi.mocked(execSync).mockReturnValue(
-      Buffer.from("refs/remotes/origin/main\n"),
-    );
+    vi.mocked(execSync).mockReturnValue(Buffer.from("refs/remotes/origin/main\n"));
     const result = resolveBaseBranch("/some/repo");
     expect(result).toBe("origin/main");
     expect(execSync).toHaveBeenCalledWith("git symbolic-ref refs/remotes/origin/HEAD", {

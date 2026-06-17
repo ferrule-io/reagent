@@ -33,7 +33,7 @@ export function resolveBaseBranch(repoPath: string, override?: string): string {
     return raw.replace(/^refs\/remotes\//, "");
   } catch (err) {
     process.stderr.write(
-      `[worktree] warning: could not resolve origin/HEAD (${String(err)}); falling back to origin/HEAD\n`
+      `[worktree] warning: could not resolve origin/HEAD (${String(err)}); falling back to origin/HEAD\n`,
     );
     return "origin/HEAD";
   }
@@ -65,16 +65,10 @@ export function provisionWorktree(opts: WorktreeOpts): string {
   }
 
   try {
-    execSync(
-      `git worktree add -b ${branch} ${worktreePath} ${baseBranch}`,
-      { cwd: repoPath }
-    );
+    execSync(`git worktree add -b ${branch} ${worktreePath} ${baseBranch}`, { cwd: repoPath });
   } catch {
     // Branch may already exist — retry without -b to check it out.
-    execSync(
-      `git worktree add ${worktreePath} ${branch}`,
-      { cwd: repoPath }
-    );
+    execSync(`git worktree add ${worktreePath} ${branch}`, { cwd: repoPath });
   }
 
   return worktreePath;
