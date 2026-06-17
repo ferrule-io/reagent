@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="acc" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#cc8899"/>
+      <stop offset="100%" stop-color="#e8b0a0"/>
+    </linearGradient>
+  </defs>
+  <!-- warm dark tile -->
+  <rect width="64" height="64" rx="12" fill="#1f1b18"/>
+  <!-- "r" stem: thick vertical bar -->
+  <rect x="18" y="22" width="8" height="24" rx="3" fill="url(#acc)"/>
+  <!-- "r" arch: top-right quadrant arc (open on the right) -->
+  <path d="M26 22 Q26 14 34 14 Q42 14 42 22 Q42 30 34 30 L26 30"
+        fill="none" stroke="url(#acc)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 252 40">
+  <defs>
+    <linearGradient id="acc" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#cc8899"/>
+      <stop offset="100%" stop-color="#e8b0a0"/>
+    </linearGradient>
+  </defs>
+  <!-- mark scaled to 40x40 -->
+  <g transform="scale(0.625)">
+    <!-- warm dark tile -->
+    <rect width="64" height="64" rx="12" fill="#1f1b18"/>
+    <!-- "r" stem -->
+    <rect x="18" y="22" width="8" height="24" rx="3" fill="url(#acc)"/>
+    <!-- "r" arch -->
+    <path d="M26 22 Q26 14 34 14 Q42 14 42 22 Q42 30 34 30 L26 30"
+          fill="none" stroke="url(#acc)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <!-- 12px gap after 40px mark -->
+  <!-- wordmark text -->
+  <text x="52" y="29"
+        font-family="system-ui, -apple-system, sans-serif"
+        font-size="22"
+        font-weight="400"
+        fill="#eeeeee"
+        letter-spacing="-0.5">reagent</text>
+</svg>

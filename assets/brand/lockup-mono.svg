@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 252 40">
+  <!-- monochrome variant: dark tile, white glyph, white wordmark -->
+  <!-- mark scaled to 40x40 -->
+  <g transform="scale(0.625)">
+    <!-- dark tile -->
+    <rect width="64" height="64" rx="12" fill="#333333"/>
+    <!-- "r" stem in white -->
+    <rect x="18" y="22" width="8" height="24" rx="3" fill="#ffffff"/>
+    <!-- "r" arch in white -->
+    <path d="M26 22 Q26 14 34 14 Q42 14 42 22 Q42 30 34 30 L26 30"
+          fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <!-- wordmark in white -->
+  <text x="52" y="29"
+        font-family="system-ui, -apple-system, sans-serif"
+        font-size="22"
+        font-weight="400"
+        fill="#ffffff"
+        letter-spacing="-0.5">reagent</text>
+</svg>
