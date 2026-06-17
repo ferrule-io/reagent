@@ -30,12 +30,25 @@ INVESTIGATE and PROPOSE run in the orchestrating session. After PROPOSE, the bri
 
 **1. Start the bridge**
 
+**Option A — Homebrew (recommended for permanent installs)**
+
+```sh
+brew tap ferrule-io/reagent https://github.com/ferrule-io/reagent
+brew install reagent-bridge
+brew services start reagent-bridge
+# bridge is now always-on at http://localhost:4319/
+```
+
+See [docs/HOMEBREW.md](docs/HOMEBREW.md) for details, upgrade instructions, and phone access over Tailscale.
+
+**Option B — From source (development)**
+
 ```sh
 cd bridge && npm run dev
 # serves MCP at http://localhost:4319/mcp and the PWA at http://localhost:4319/
 ```
 
-Alternatively, run the Electron desktop app (macOS only, M1):
+**Option C — Electron desktop app (macOS only, M1)**
 
 ```sh
 cd desktop && npm run app:dev
@@ -93,5 +106,6 @@ docs/             PLUGIN.md, bridge details, work item plans
 
 ## Learn more
 
+- [docs/HOMEBREW.md](docs/HOMEBREW.md) — Homebrew install, brew services, upgrade
 - [docs/PLUGIN.md](docs/PLUGIN.md) — plugin install, commands, headless launch, Tailscale details
 - [bridge/README.md](bridge/README.md) — bridge scripts, env vars, surfaces, architecture
