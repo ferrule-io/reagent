@@ -18,7 +18,7 @@ Rules:
 
 ## Mode: plan-review
 
-**Inputs:** `units` (the JSON array from the planner), plus access to `docs/reagent/<id>/` plan docs.
+**Inputs:** `units` (the JSON array from the planner), plus access to `docs/reagent/<slug>/` plan docs (where `<slug>` is the branch slug — the part after `reagent/` in the branch name, as described in reagent-planner.md).
 
 **Task:** Verify the plan is grounded in reality and internally consistent.
 
@@ -32,14 +32,14 @@ Check each of the following — any failure is a violation:
 
 ## Mode: code-review
 
-**Inputs:** a `unit` (`{ id, title, scope, planDocPath }`), the `branch` name (`reagent/<id>`).
+**Inputs:** a `unit` (`{ id, title, scope, planDocPath }`), the `branch` name (`reagent/<slug>`, where `<slug>` is the branch slug), and `baseBranch` (from the work item's `baseBranch` field, e.g. `development`).
 
 **Task:** Validate that ALL and ONLY the specified changes were made.
 
 Steps:
 1. Read the unit's plan doc at `planDocPath`. Extract the scope, approach, and acceptance criteria.
-2. Compute the unit's diff: run `git diff <base>...<branch> -- <scope files>` from `repoPath` to see what changed. Also run `git diff <base>...<branch>` (no path filter) to detect any out-of-scope changes.
-   - Use `git log reagent/<id> --not development --oneline` to identify the unit's commits if needed.
+2. Compute the unit's diff using `baseBranch` from the work item (`GET /api/items/<id>`) as the base ref — do **not** hardcode a branch name. Run `git diff <baseBranch>...<branch> -- <scope files>` from `repoPath` to see what changed. Also run `git diff <baseBranch>...<branch>` (no path filter) to detect any out-of-scope changes.
+   - Use `git log reagent/<slug> --not <baseBranch> --oneline` to identify the unit's commits if needed.
    - Use `git show <commit> --stat` or `git diff <parent>..<commit>` for a specific commit.
 3. Check **ALL specified changes present**: every acceptance criterion in the plan doc is satisfied by the diff.
 4. Check **ONLY specified changes present**: no file outside the unit's `scope` was modified; no unrelated edits, debug leftovers, or silent changes appear in the diff.

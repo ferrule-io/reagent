@@ -13,6 +13,8 @@ export interface CreateInput {
   branch?: string;
   /** Pre-assigned git worktree path for concurrent isolation. */
   worktreePath?: string;
+  /** Resolved git base ref this item's branch was created from (e.g. "origin/development"). */
+  baseBranch?: string;
 }
 
 export class StateStore {
@@ -38,6 +40,7 @@ export class StateStore {
       updatedAt: now,
       ...(input.branch !== undefined ? { branch: input.branch } : {}),
       ...(input.worktreePath !== undefined ? { worktreePath: input.worktreePath } : {}),
+      ...(input.baseBranch !== undefined ? { baseBranch: input.baseBranch } : {}),
     };
     this.write(item);
     return item;

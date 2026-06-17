@@ -1,7 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, isAbsolute } from "node:path";
+
+// Stub worktree helpers so tests do not shell out to real git.
+vi.mock("../src/state/worktree.js", () => ({
+  resolveBaseBranch: (_repoPath: string, override?: string) => override ?? "origin/development",
+  provisionWorktree: (opts: { worktreesDir: string; branchSlug: string }) =>
+    join(opts.worktreesDir, opts.branchSlug),
+}));
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { StateStore } from "../src/state/store.js";
@@ -46,6 +53,8 @@ describe("MCP server tools", () => {
     });
     expect(store.get("wi_1")?.request).toBe("do it");
     expect(reg.get("wi_1")?.title).toBe("T");
+    // baseBranch is persisted from the (mocked) resolveBaseBranch
+    expect(store.get("wi_1")?.baseBranch).toBe("origin/development");
   });
 
   it("derives a human-readable branch at creation time", async () => {
@@ -60,6 +69,9 @@ describe("MCP server tools", () => {
       },
     });
     expect(store.get("wi_br1")?.branch).toBe("reagent/fix-the-login-bug");
+    // worktreePath is keyed by the branch slug, not the item id
+    const wt = store.get("wi_br1")?.worktreePath ?? "";
+    expect(wt.endsWith("fix-the-login-bug")).toBe(true);
   });
 
   it("disambiguates duplicate title branches with a numeric suffix", async () => {

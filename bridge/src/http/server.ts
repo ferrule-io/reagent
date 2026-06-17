@@ -2,13 +2,14 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { readFileSync, mkdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import type { StateStore } from "../state/store.js";
 import type { RepoStore } from "../state/repos.js";
 import type { Registry } from "../registry/registry.js";
 import type { CheckpointStore } from "../checkpoints/checkpoints.js";
 import type { SessionLauncher } from "../launch/launcher.js";
 import { branchFor } from "../state/slug.js";
+import { resolveBaseBranch, provisionWorktree } from "../state/worktree.js";
 
 export interface HttpDeps {
   store: StateStore;
@@ -74,8 +75,20 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
         .filter(Boolean) as string[],
     );
     const branch = branchFor(title, id, existingBranches);
-    mkdirSync(worktreesDir, { recursive: true });
-    const worktreePath = join(worktreesDir, id);
+    const branchSlug = branch.replace(/^reagent\//, "");
+
+    const baseBranch = resolveBaseBranch(repoPath);
+
+    const effectiveWorktreesDir = worktreesDir || join(repoPath, ".reagent", "worktrees");
+
+    const worktreePath = provisionWorktree({
+      repoPath,
+      worktreesDir: effectiveWorktreesDir,
+      branchSlug,
+      branch,
+      baseBranch,
+    });
+
     const item = store.create({
       id,
       title,
@@ -84,6 +97,7 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
       origin: "phone",
       branch,
       worktreePath,
+      baseBranch,
     });
     registry.upsert(item);
     // Launch a headless session to drive this work item (investigate -> open gate -> exit).
