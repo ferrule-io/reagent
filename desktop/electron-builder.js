@@ -52,9 +52,15 @@ module.exports = {
       from: 'build/tray-icon.png',
       to: 'tray-icon.png',
     },
+    // Retina tray icon — Electron auto-resolves @2x when it exists alongside 1x.
+    {
+      from: 'build/tray-icon@2x.png',
+      to: 'tray-icon@2x.png',
+    },
   ],
 
   mac: {
+    icon: 'build/icon.icns',
     category: 'public.app-category.developer-tools',
 
     // Hardened runtime is required for notarization; also best security practice.

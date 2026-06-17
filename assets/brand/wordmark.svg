@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40">
+  <!-- transparent background, text in light color for dark backgrounds -->
+  <text x="0" y="30"
+        font-family="system-ui, -apple-system, sans-serif"
+        font-size="32"
+        font-weight="400"
+        fill="#eeeeee"
+        letter-spacing="-0.5">reagent</text>
+</svg>

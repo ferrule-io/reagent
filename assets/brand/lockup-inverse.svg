@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 252 40">
+  <!-- inverse variant: light tile, dark glyph, dark wordmark — for light backgrounds -->
+  <!-- mark scaled to 40x40 -->
+  <g transform="scale(0.625)">
+    <!-- light tile -->
+    <rect width="64" height="64" rx="12" fill="#f5f0eb"/>
+    <!-- "r" stem in dark -->
+    <rect x="18" y="22" width="8" height="24" rx="3" fill="#1f1b18"/>
+    <!-- "r" arch in dark -->
+    <path d="M26 22 Q26 14 34 14 Q42 14 42 22 Q42 30 34 30 L26 30"
+          fill="none" stroke="#1f1b18" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <!-- wordmark in dark -->
+  <text x="52" y="29"
+        font-family="system-ui, -apple-system, sans-serif"
+        font-size="22"
+        font-weight="400"
+        fill="#1f1b18"
+        letter-spacing="-0.5">reagent</text>
+</svg>
