@@ -56,7 +56,7 @@ Invoke the `reagent-planner` subagent (Agent tool / `@agent-reagent-planner`) pa
 - `id`, `repoPath`, `worktreePath`, `baseBranch`, the approved `plan` (diagnosis + direction)
 - `feedback[]` — accumulated revise-round notes (empty array on first call)
 
-The planner explores the repo via `worktreePath`, writes `docs/reagent/<slug>/<unit-slug>.md` for each unit (inside the worktree), commits the plan docs on the feature branch, and returns a `units` array with descriptive kebab-case unit ids:
+The planner explores the repo via `worktreePath`, writes `docs/reagent/<slug>/<unit-slug>.md` for each unit (inside the worktree), commits the plan docs **and `docs/reagent/<slug>/CHECKS.md` (the ordered check manifest)** on the feature branch, and returns a `units` array with descriptive kebab-case unit ids:
 ```json
 [
   { "id": "repo-internal-worktree-path", "title": "...", "scope": ["path/to/file"], "planDocPath": "docs/reagent/<slug>/repo-internal-worktree-path.md", "dependsOn": [] },
@@ -67,6 +67,8 @@ Record the units on the bridge:
 ```
 report_status({ id, phase: "PLAN", line: "plan decomposed into N units", units: [...] })
 ```
+
+Note: `CHECKS.md` is committed alongside the plan docs. It is a shared manifest — not a unit in the `units` array — consumed by every executor and reviewer invocation.
 
 ### Step 2 — Plan review (adversarial, bounded)
 Invoke the `reagent-reviewer` subagent (Agent tool / `@agent-reagent-reviewer`) in **plan-review** mode, passing:
@@ -96,7 +98,7 @@ Invoke the `reagent-executor` subagent (Agent tool / `@agent-reagent-executor`) 
 - `unit` — the unit object `{ id, title, scope, planDocPath }`
 - `violations[]` — empty on first invocation; populated on retry after a review FAIL
 
-The executor verifies the worktree exists, makes changes on the branch, commits locally, and reports status.
+The executor verifies the worktree exists, makes changes on the branch, commits locally, and reports status. The executor reads `docs/reagent/<slug>/CHECKS.md` from the worktree before committing each unit.
 
 ```
 report_status({ id, phase: "EXECUTE", line: "unit <unitId>: execution complete", branch: "<the item branch>" })
@@ -106,7 +108,7 @@ report_status({ id, phase: "EXECUTE", line: "unit <unitId>: execution complete",
 Invoke the `reagent-reviewer` subagent (Agent tool / `@agent-reagent-reviewer`) in **code-review** mode, passing:
 - `id`, `repoPath`, `mode: "code-review"`, the `unit` object, `branch: "<the item branch>"`, `baseBranch: "<the item baseBranch>"`
 
-The reviewer diffs the unit's commit(s) against `baseBranch` and checks the ALL-and-ONLY criterion (all specified changes present, no out-of-scope changes).
+The reviewer diffs the unit's commit(s) against `baseBranch` and checks the ALL-and-ONLY criterion (all specified changes present, no out-of-scope changes). The reviewer re-runs the checks from `docs/reagent/<slug>/CHECKS.md` as part of code review; any non-pre-existing failure causes `VERDICT: FAIL`.
 
 Parse the reviewer's final lines for `VERDICT: PASS` or `VERDICT: FAIL`.
 
