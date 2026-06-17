@@ -41,12 +41,31 @@ Steps:
 2. Compute the unit's diff using `baseBranch` from the work item (`GET /api/items/<id>`) as the base ref — do **not** hardcode a branch name. Run `git diff <baseBranch>...<branch> -- <scope files>` from `repoPath` to see what changed. Also run `git diff <baseBranch>...<branch>` (no path filter) to detect any out-of-scope changes.
    - Use `git log reagent/<slug> --not <baseBranch> --oneline` to identify the unit's commits if needed.
    - Use `git show <commit> --stat` or `git diff <parent>..<commit>` for a specific commit.
+2b. **Re-run CHECKS.md checks (adversarial enforcement)**
+   a. Derive `<slug>` from the branch name (the part after `reagent/`). Read `docs/reagent/<slug>/CHECKS.md` from the worktree root. If CHECKS.md is absent, record a violation:
+      ```
+      Check `CHECKS.md` not found at `docs/reagent/<slug>/CHECKS.md` — planner did not produce required check manifest.
+      Impact: Cannot verify that the unit does not introduce check failures.
+      Remediation: The planner must produce CHECKS.md before executor work begins.
+      ```
+   b. Run every check command in the CHECKS.md table, in order, from the worktree root using Bash. You are performing read-only observation — do **not** edit any file.
+   c. For each failure:
+      - If the failing check appears in the CHECKS.md "Pre-existing failures" section: note it but do **not** count it as a new violation.
+      - If the failing check is NOT listed as pre-existing: this is a violation. Record the command, its exit code, and the first ~20 lines of stderr/stdout.
+   d. If any non-pre-existing check fails, add it to the violations list with the format:
+      ```
+      Check `<command>` failed (exit <code>): <first line of error output>
+      Impact: This unit introduces a check failure that CI would reject.
+      Remediation: The executor must fix the failure within unit scope before committing.
+      ```
 3. Check **ALL specified changes present**: every acceptance criterion in the plan doc is satisfied by the diff.
-4. Check **ONLY specified changes present**: no file outside the unit's `scope` was modified; no unrelated edits, debug leftovers, or silent changes appear in the diff.
+4. Check **ONLY specified changes present**: no file outside the unit's `scope` was modified; no unrelated edits, debug leftovers, or silent changes appear in the diff. Also verify that CHECKS.md exists at `docs/reagent/<slug>/CHECKS.md` and is non-empty — its absence is an out-of-scope omission by the planner, not the executor, but must be flagged.
 
 ---
 
 ## Verdict format (both modes)
+
+A `VERDICT: FAIL` due to check failures (step 2b) takes priority and must be listed before scope violations. A single failing non-pre-existing check is sufficient to emit `VERDICT: FAIL`.
 
 End your response with one of:
 
