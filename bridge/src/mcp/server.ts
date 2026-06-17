@@ -2,13 +2,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { resolve, isAbsolute, join } from "node:path";
-import { mkdirSync } from "node:fs";
 import { execSync } from "node:child_process";
 import type { StateStore } from "../state/store.js";
 import type { Registry } from "../registry/registry.js";
 import type { CheckpointStore } from "../checkpoints/checkpoints.js";
 import type { Phase, Unit } from "../state/types.js";
 import { branchFor } from "../state/slug.js";
+import { resolveBaseBranch, provisionWorktree } from "../state/worktree.js";
 
 export interface McpDeps {
   store: StateStore;
@@ -77,8 +77,23 @@ export function buildMcpServer(deps: McpDeps): McpServer {
             .filter(Boolean) as string[],
         );
         const branch = branchFor(title, id, existingBranches);
-        mkdirSync(worktreesDir, { recursive: true });
-        const worktreePath = join(worktreesDir, id);
+        const branchSlug = branch.replace(/^reagent\//, "");
+
+        // Resolve the base ref from the repo's remote HEAD.
+        const baseBranch = resolveBaseBranch(absoluteRepoPath);
+
+        // Effective worktrees dir: config override or repo-relative default.
+        const effectiveWorktreesDir =
+          worktreesDir || join(absoluteRepoPath, ".reagent", "worktrees");
+
+        const worktreePath = provisionWorktree({
+          repoPath: absoluteRepoPath,
+          worktreesDir: effectiveWorktreesDir,
+          branchSlug,
+          branch,
+          baseBranch,
+        });
+
         store.create({
           id,
           title,
@@ -87,6 +102,7 @@ export function buildMcpServer(deps: McpDeps): McpServer {
           origin,
           branch,
           worktreePath,
+          baseBranch,
         });
       }
       touch(id);
