@@ -16,6 +16,7 @@ Rules:
 
 Procedure:
 1. `cd` into `worktreePath` (not `repoPath`). All subsequent reads and writes happen from there. Use `worktreePath` for exploring the repo structure and for writing plan docs.
+1b. **Discover required checks and write CHECKS.md.** Follow the check-discovery procedure defined in `agents/check-discovery.md` to enumerate the repo's required checks. Apply the four priority levels (CI config → manifest scripts → tool-config map → git hooks) against the worktree to build an ordered list of check commands. Detect pre-existing failures: run each discovered check command against the base state (before any unit changes) and note which ones fail. Write `docs/reagent/<slug>/CHECKS.md` inside the worktree using the table format specified in `agents/check-discovery.md` (columns: #, Command, Discovered via). If any checks fail in the base state, append a "Pre-existing failures" section to CHECKS.md as specified in `agents/check-discovery.md`. CHECKS.md is a shared manifest consumed by executors and the reviewer — it is not a unit of implementation work.
 2. Decompose the approved direction into mutually-exclusive units. Each unit must have non-overlapping `scope` (file globs). Assign each unit a descriptive kebab-case `id` (e.g. `repo-internal-worktree-path`, `base-ref-resolver`) and a concise `title`.
 3. Derive the `<slug>` from the branch name: it is the part after `reagent/` in the branch name. For each unit, write `docs/reagent/<slug>/<unit-slug>.md` (inside the worktree) containing:
    - **Goal** — what the unit achieves.
@@ -25,9 +26,9 @@ Procedure:
 4. After writing all plan docs, commit them on the feature branch from within the worktree:
    ```
    git add docs/reagent/<slug>
-   git commit -m "docs(reagent): plan docs for <id> (<unit slugs joined by ', '>)"
+   git commit -m "docs(reagent): plan docs + CHECKS.md for <id> (<unit slugs joined by ', '>)"
    ```
-5. Return a JSON array to the caller (the orchestrator records it on the bridge):
+5. Return a JSON array to the caller (the orchestrator records it on the bridge). Note: the units array does not include CHECKS.md as a unit — it is a shared manifest, not a unit of implementation work.
    ```json
    [
      { "id": "repo-internal-worktree-path", "title": "...", "scope": ["path/to/file"], "planDocPath": "docs/reagent/<slug>/repo-internal-worktree-path.md", "dependsOn": [] },
