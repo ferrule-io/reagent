@@ -16,6 +16,7 @@ You are given `$ARGUMENTS`, beginning with a verb:
 
 ## Tool reference (bridge)
 - `register_work_item({ id, title, repoPath, request, origin })` (no-op if `id` already exists)
+  - **Note:** `register_work_item` also provisions the git worktree and feature branch synchronously. After it returns, the item's `worktreePath` (e.g. `<repoPath>/.reagent/worktrees/<branchSlug>`) and `baseBranch` (the resolved base ref, e.g. `development`) are populated on the item. Fetch the item immediately after registration to get these values.
 - `report_status({ id, phase?, line?, plan?, proposal?, units?, branch? })`
   - `proposal`: the current human-facing proposal text (PROPOSE stage)
   - `units`: array of `{ id, title, scope: string[], planDocPath, dependsOn: string[] }` (PLAN stage)
@@ -44,15 +45,22 @@ Then branch on the decision result:
 ## PLAN (shared, delegated + adversarial review)
 
 ### Step 1 — Delegate decomposition to `reagent-planner`
+
+After `register_work_item` returns (or after `resume` fetches state), fetch the item to get `worktreePath` and `baseBranch`:
+```
+curl -s http://localhost:4319/api/items/<id>
+```
+Extract `worktreePath` and `baseBranch` from the response. Pass both to every subagent that needs them.
+
 Invoke the `reagent-planner` subagent (Agent tool / `@agent-reagent-planner`) passing:
-- `id`, `repoPath`, the approved `plan` (diagnosis + direction)
+- `id`, `repoPath`, `worktreePath`, `baseBranch`, the approved `plan` (diagnosis + direction)
 - `feedback[]` — accumulated revise-round notes (empty array on first call)
 
-The planner explores the repo, writes `docs/reagent/<id>/<unitId>.md` for each unit, and returns a `units` array:
+The planner explores the repo via `worktreePath`, writes `docs/reagent/<slug>/<unit-slug>.md` for each unit (inside the worktree), commits the plan docs on the feature branch, and returns a `units` array with descriptive kebab-case unit ids:
 ```json
 [
-  { "id": "u1", "title": "...", "scope": ["path/to/file"], "planDocPath": "docs/reagent/<id>/u1.md", "dependsOn": [] },
-  ...
+  { "id": "repo-internal-worktree-path", "title": "...", "scope": ["path/to/file"], "planDocPath": "docs/reagent/<slug>/repo-internal-worktree-path.md", "dependsOn": [] },
+  { "id": "base-ref-resolver", "title": "...", "scope": ["other/file.ts"], "planDocPath": "docs/reagent/<slug>/base-ref-resolver.md", "dependsOn": ["repo-internal-worktree-path"] }
 ]
 ```
 Record the units on the bridge:
@@ -78,17 +86,17 @@ report_status({ id, phase: "PLAN", line: "plan review: FAIL — <violation summa
 
 ## EXECUTE (shared, per-unit delegated + adversarial review)
 
-First fetch the item's `branch` field: `curl -s http://localhost:4319/api/items/<id>` (same call used in `resume`). Use that stored branch value everywhere below — pass it to every subagent as `branch` rather than constructing `reagent/<id>` literally.
+First fetch the item to get `branch`, `worktreePath`, and `baseBranch`: `curl -s http://localhost:4319/api/items/<id>`. Use those stored values everywhere below — pass them to every subagent rather than constructing values literally.
 
 For **each unit** in the approved units array (in dependency order):
 
 ### Step 1 — Delegate execution to `reagent-executor`
 Invoke the `reagent-executor` subagent (Agent tool / `@agent-reagent-executor`) passing:
-- `id`, `repoPath`, the approved `plan` (diagnosis + direction), the item's `branch`
+- `id`, `repoPath`, the approved `plan` (diagnosis + direction), the item's `branch`, `worktreePath`
 - `unit` — the unit object `{ id, title, scope, planDocPath }`
 - `violations[]` — empty on first invocation; populated on retry after a review FAIL
 
-The executor makes changes on the branch, commits locally, and reports status.
+The executor verifies the worktree exists, makes changes on the branch, commits locally, and reports status.
 
 ```
 report_status({ id, phase: "EXECUTE", line: "unit <unitId>: execution complete", branch: "<the item branch>" })
@@ -96,9 +104,9 @@ report_status({ id, phase: "EXECUTE", line: "unit <unitId>: execution complete",
 
 ### Step 2 — Code review (adversarial, bounded, per unit)
 Invoke the `reagent-reviewer` subagent (Agent tool / `@agent-reagent-reviewer`) in **code-review** mode, passing:
-- `id`, `repoPath`, `mode: "code-review"`, the `unit` object, `branch: "<the item branch>"`
+- `id`, `repoPath`, `mode: "code-review"`, the `unit` object, `branch: "<the item branch>"`, `baseBranch: "<the item baseBranch>"`
 
-The reviewer diffs the unit's commit(s) and checks the ALL-and-ONLY criterion (all specified changes present, no out-of-scope changes).
+The reviewer diffs the unit's commit(s) against `baseBranch` and checks the ALL-and-ONLY criterion (all specified changes present, no out-of-scope changes).
 
 Parse the reviewer's final lines for `VERDICT: PASS` or `VERDICT: FAIL`.
 
@@ -126,6 +134,7 @@ Report the branch name and a one-line summary. Do not push.
 1. **INTAKE.** Generate a work item id `wi_<8 hex chars>`. Derive a short `title`. Call
    `register_work_item({ id, title, repoPath, request: "<full request text>", origin: "terminal" })` and
    `report_status({ id, phase: "INVESTIGATE", line: "starting investigation" })`.
+   Then immediately fetch the item: `curl -s http://localhost:4319/api/items/<id>` to get `worktreePath` and `baseBranch`.
 2. **INVESTIGATE** (shared step above).
 3. **PROPOSE (poll).** Generate proposal. Call `report_status({ id, phase: "PROPOSE", line: "proposal ready", proposal })`.
    Call `await_decision({ id, prompt })`.
@@ -143,6 +152,7 @@ Report the branch name and a one-line summary. Do not push.
 1. **INTAKE.** Use the **given `id`** (do NOT generate one). Derive a short `title`. Call
    `register_work_item({ id, title, repoPath, request: "<full request text>", origin: "phone" })` (no-op if the bridge already created it) and
    `report_status({ id, phase: "INVESTIGATE", line: "starting investigation" })`.
+   Then immediately fetch the item: `curl -s http://localhost:4319/api/items/<id>` to get `worktreePath` and `baseBranch`.
 2. **INVESTIGATE** (shared step above).
 3. **PROPOSE (open + exit).** Generate proposal. Call `report_status({ id, phase: "PROPOSE", line: "proposal ready", proposal })`.
    Call `await_decision({ id, prompt })` **exactly once**.
@@ -151,7 +161,7 @@ Report the branch name and a one-line summary. Do not push.
 
 ## `resume <id>` (launched — short-lived, one step then exit)
 
-1. Fetch state (read-only) via Bash: `curl -s http://localhost:4319/api/items/<id>` → JSON with `phase`, `plan`, `proposal`, `units`, `feedback`, `branch`, `pendingCheckpoint`, `request`, `repoPath`. Reconstruct from this + the live repo — do NOT rely on prior conversation.
+1. Fetch state (read-only) via Bash: `curl -s http://localhost:4319/api/items/<id>` → JSON with `phase`, `plan`, `proposal`, `units`, `feedback`, `branch`, `worktreePath`, `baseBranch`, `pendingCheckpoint`, `request`, `repoPath`. Extract `worktreePath` and `baseBranch` for passing to subagents. Reconstruct from this + the live repo — do NOT rely on prior conversation.
 2. Branch on state:
    - terminal (`DONE`/`REJECTED`/`FAILED`) → report it; nothing to do.
    - `pendingCheckpoint` present **and decided**:
@@ -159,7 +169,7 @@ Report the branch name and a one-line summary. Do not push.
      - `revise` → incorporate `decision.note` from `pendingCheckpoint.decision`, regenerate proposal incorporating existing `feedback[]`, call `report_status({ id, phase: "PROPOSE", proposal })`, then call `await_decision` **once**; pending → end your turn; decided → handle.
      - `reject` → `complete_work_item({ id, phase: "REJECTED" })`.
    - `phase` PLAN (in progress, no units yet) → run **PLAN** (shared step), then **EXECUTE**.
-   - `phase` EXECUTE (in progress) → **EXECUTE** (shared step) on the item's `branch` (already fetched from the API response), re-entering the per-unit loop idempotently: skip units whose code review already passed (check existing commits on the branch), then continue with the next pending unit.
+   - `phase` EXECUTE (in progress) → **EXECUTE** (shared step) on the item's `branch`, `worktreePath`, and `baseBranch` (all fetched from the API response), re-entering the per-unit loop idempotently: skip units whose code review already passed (check existing commits on the branch), then continue with the next pending unit.
    - `pendingCheckpoint` present but **undecided** → call `await_decision({ id, prompt: pendingCheckpoint.prompt })` **once**; pending → end your turn; decided → handle as above.
    - `phase` INVESTIGATE with no plan → run **INVESTIGATE**, then open the gate as in `start-async` step 3 (call once, exit if pending).
    - `phase` PROPOSE with no pending checkpoint (e.g. after revise was processed) → regenerate proposal (using accumulated `feedback[]`), `report_status`, call `await_decision` once, exit if pending.
@@ -174,4 +184,5 @@ Report the branch name and a one-line summary. Do not push.
 - Keep `report_status` lines short and human-readable — they show up live in the bridge UI.
 - **Async mode (`start-async`/`resume`) is short-lived: do exactly one step (open the gate, or execute), then end your turn. Never poll in async mode — the bridge re-launches you on the human's decision.**
 - The `revise` result is a first-class outcome: always incorporate the note from `decision.note` into the regenerated proposal. Each revise round is appended to `item.feedback[]` by the bridge automatically.
-- Plan documents (`docs/reagent/<id>/<unitId>.md`) are written to the **target repo**, not the bridge repo. Create parent directories as needed.
+- **The shared main checkout (`repoPath`) is read-only for automation — all file edits happen inside the worktree.** Never run `git checkout` in `repoPath`.
+- Plan documents (`docs/reagent/<slug>/<unit-slug>.md`) are written to the **worktree** (a checkout of the feature branch), committed there by the planner. They reach the main branch only via merge-back.

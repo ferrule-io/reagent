@@ -32,14 +32,14 @@ Check each of the following — any failure is a violation:
 
 ## Mode: code-review
 
-**Inputs:** a `unit` (`{ id, title, scope, planDocPath }`), the `branch` name (`reagent/<id>`).
+**Inputs:** a `unit` (`{ id, title, scope, planDocPath }`), the `branch` name (`reagent/<id>`), and `baseBranch` (from the work item's `baseBranch` field, e.g. `development`).
 
 **Task:** Validate that ALL and ONLY the specified changes were made.
 
 Steps:
 1. Read the unit's plan doc at `planDocPath`. Extract the scope, approach, and acceptance criteria.
-2. Compute the unit's diff: run `git diff <base>...<branch> -- <scope files>` from `repoPath` to see what changed. Also run `git diff <base>...<branch>` (no path filter) to detect any out-of-scope changes.
-   - Use `git log reagent/<id> --not development --oneline` to identify the unit's commits if needed.
+2. Compute the unit's diff using `baseBranch` from the work item (`GET /api/items/<id>`) as the base ref — do **not** hardcode a branch name. Run `git diff <baseBranch>...<branch> -- <scope files>` from `repoPath` to see what changed. Also run `git diff <baseBranch>...<branch>` (no path filter) to detect any out-of-scope changes.
+   - Use `git log <branch> --not <baseBranch> --oneline` to identify the unit's commits if needed.
    - Use `git show <commit> --stat` or `git diff <parent>..<commit>` for a specific commit.
 3. Check **ALL specified changes present**: every acceptance criterion in the plan doc is satisfied by the diff.
 4. Check **ONLY specified changes present**: no file outside the unit's `scope` was modified; no unrelated edits, debug leftovers, or silent changes appear in the diff.
