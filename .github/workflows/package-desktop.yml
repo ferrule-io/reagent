@@ -46,14 +46,59 @@ jobs:
         working-directory: desktop
         run: npm run build
 
+      # Step 3.5: Import the Developer ID Application cert into a dedicated keychain
+      # that is ON THE DEFAULT SEARCH LIST for the whole job.
+      #
+      # WHY: if we only hand electron-builder CSC_LINK, it imports the cert into its
+      # own *temporary* keychain (referenced via --keychain) that is NOT on the
+      # default search list. App signing works (it resolves the identity by SHA-1),
+      # but the afterAllArtifactBuild hook's bare `codesign --sign "Developer ID
+      # Application"` searches only the default search list and fails with
+      # "The specified item could not be found in the keychain."
+      #
+      # Importing into a search-listed keychain and pointing CSC_KEYCHAIN at it lets
+      # BOTH electron-builder (auto-discovery) AND the manual hook resolve the
+      # identity by name.
+      - name: Import signing certificate
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+
+          # Create, configure, and unlock a dedicated keychain.
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import the Developer ID Application cert (base64-encoded .p12).
+          echo "$CSC_LINK" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN_PATH" \
+            -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+          # Allow codesign to use the private key without an interactive prompt.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Prepend our keychain to the user search list (preserving the existing
+          # entries) so a bare `codesign --sign "Developer ID Application"` resolves.
+          EXISTING=$(security list-keychains -d user | sed -e 's/[\"[:space:]]//g')
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $EXISTING
+
+          # Hand electron-builder this keychain; auto-discovery finds the identity.
+          echo "CSC_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
       # Step 4: Package — both macOS architectures; never publish to a registry
       - name: Package macOS (arm64 + x64)
         working-directory: desktop
         env:
-          # Code-signing: Developer ID Application cert exported as base64-encoded .p12.
-          # Read directly by electron-builder.
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # Code-signing: the Developer ID Application cert is already imported into
+          # CSC_KEYCHAIN (see "Import signing certificate"). electron-builder uses
+          # auto-discovery against that keychain — no CSC_LINK import needed here.
+          # CSC_KEYCHAIN is exported via $GITHUB_ENV by the prior step.
           # Notarization auth: APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD are read
           # automatically by electron-builder from the environment when the
           # notarytool path is active (i.e. when notarize.teamId is truthy).
