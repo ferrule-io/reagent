@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/lockup.svg" alt="reagent" height="48" />
+</p>
+
 # reagent
 
 Phone-drivable Claude Code coding harness with human approval gates.
