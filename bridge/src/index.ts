@@ -1,7 +1,5 @@
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 import { loadConfig } from "./config.js";
 import { StateStore } from "./state/store.js";
 import { RepoStore } from "./state/repos.js";
@@ -11,6 +9,7 @@ import { CheckpointStore } from "./checkpoints/checkpoints.js";
 import { buildMcpServer } from "./mcp/server.js";
 import { buildHttpServer } from "./http/server.js";
 import { Launcher, type SpawnLike } from "./launch/launcher.js";
+import { resolvePluginDir } from "./plugin-dir.js";
 
 async function main() {
   const cfg = loadConfig();
@@ -35,9 +34,7 @@ async function main() {
     checkpointPollMs: cfg.checkpointPollMs,
     worktreesDir: cfg.worktreesDir,
   };
-  // The reagent plugin is the repo root (this file lives at <repo>/bridge/{src,dist}/index).
-  const pluginDir =
-    process.env.REAGENT_PLUGIN_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const pluginDir = await resolvePluginDir();
   const launcher = new Launcher(spawn as unknown as SpawnLike, {
     pluginDir,
     permissionMode: cfg.launchPermissionMode,
@@ -50,6 +47,7 @@ async function main() {
     checkpoints,
     launcher,
     worktreesDir: cfg.worktreesDir,
+    pluginDir,
   });
 
   // Mount the MCP server at /mcp using stateless Streamable HTTP transport.

@@ -426,3 +426,60 @@ describe("HTTP API — launcher wiring", () => {
     expect(launcher.resumes).toEqual([]);
   });
 });
+
+describe("HTTP API — /api/plugin", () => {
+  it("returns null fields when pluginDir is not supplied", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "reagent-plugin-test-"));
+    const s = new StateStore(tmpDir);
+    const r = new RepoStore(tmpDir);
+    const g = new Registry();
+    const c = new CheckpointStore();
+    const testApp = buildHttpServer({
+      store: s,
+      repos: r,
+      registry: g,
+      checkpoints: c,
+      worktreesDir: tmpDir,
+    });
+    try {
+      const res = await testApp.inject({ method: "GET", url: "/api/plugin" });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({
+        pluginDir: null,
+        version: null,
+        marketplaceAddCommand: null,
+      });
+    } finally {
+      await testApp.close();
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns pluginDir and marketplaceAddCommand when pluginDir is supplied", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "reagent-plugin-test-"));
+    const s = new StateStore(tmpDir);
+    const r = new RepoStore(tmpDir);
+    const g = new Registry();
+    const c = new CheckpointStore();
+    const testApp = buildHttpServer({
+      store: s,
+      repos: r,
+      registry: g,
+      checkpoints: c,
+      worktreesDir: tmpDir,
+      pluginDir: "/some/plugin/root",
+    });
+    try {
+      const res = await testApp.inject({ method: "GET", url: "/api/plugin" });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.pluginDir).toBe("/some/plugin/root");
+      expect(body.marketplaceAddCommand).toBe("/plugin marketplace add /some/plugin/root");
+      // version is null because /some/plugin/root does not exist on disk
+      expect(body.version).toBeNull();
+    } finally {
+      await testApp.close();
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
