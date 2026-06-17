@@ -79,7 +79,15 @@ export function buildMcpServer(deps: McpDeps): McpServer {
         const branch = branchFor(title, id, existingBranches);
         mkdirSync(worktreesDir, { recursive: true });
         const worktreePath = join(worktreesDir, id);
-        store.create({ id, title, repoPath: absoluteRepoPath, request, origin, branch, worktreePath });
+        store.create({
+          id,
+          title,
+          repoPath: absoluteRepoPath,
+          request,
+          origin,
+          branch,
+          worktreePath,
+        });
       }
       touch(id);
       return json({ ok: true });
