@@ -22,7 +22,13 @@ describe("HTTP API", () => {
     repos = new RepoStore(dir);
     reg = new Registry();
     cps = new CheckpointStore();
-    app = buildHttpServer({ store, repos, registry: reg, checkpoints: cps });
+    app = buildHttpServer({
+      store,
+      repos,
+      registry: reg,
+      checkpoints: cps,
+      worktreesDir: join(dir, "worktrees"),
+    });
   });
   afterEach(async () => {
     await app.close();
@@ -206,7 +212,13 @@ describe("HTTP API — /api/repos", () => {
     repos = new RepoStore(dir);
     const reg = new Registry();
     const cps = new CheckpointStore();
-    app = buildHttpServer({ store, repos, registry: reg, checkpoints: cps });
+    app = buildHttpServer({
+      store,
+      repos,
+      registry: reg,
+      checkpoints: cps,
+      worktreesDir: join(dir, "worktrees"),
+    });
   });
   afterEach(async () => {
     await app.close();
@@ -323,7 +335,14 @@ describe("HTTP API — launcher wiring", () => {
         this.resumes.push(o);
       },
     };
-    app = buildHttpServer({ store, repos, registry: reg, checkpoints: cps, launcher });
+    app = buildHttpServer({
+      store,
+      repos,
+      registry: reg,
+      checkpoints: cps,
+      launcher,
+      worktreesDir: join(dir, "worktrees"),
+    });
   });
   afterEach(async () => {
     await app.close();

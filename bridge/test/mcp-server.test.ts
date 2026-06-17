@@ -25,7 +25,13 @@ describe("MCP server tools", () => {
     store = new StateStore(dir);
     reg = new Registry();
     cps = new CheckpointStore();
-    const server = buildMcpServer({ store, registry: reg, checkpoints: cps, checkpointPollMs: 50 });
+    const server = buildMcpServer({
+      store,
+      registry: reg,
+      checkpoints: cps,
+      checkpointPollMs: 50,
+      worktreesDir: join(dir, "worktrees"),
+    });
 
     const [clientT, serverT] = InMemoryTransport.createLinkedPair();
     client = new Client({ name: "test", version: "0" });
