@@ -55,6 +55,8 @@ export interface WorkItem {
   branch?: string;
   /** Absolute path to the git worktree for this item (e.g. ~/.reagent/worktrees/<id>). Assigned alongside branch; torn down on terminal state. */
   worktreePath?: string;
+  /** Resolved git base ref this item's branch was created from (e.g. "origin/development"). */
+  baseBranch?: string;
   /** Pending human gate, if any. */
   pendingCheckpoint?: Checkpoint;
   /** Append-only activity log lines for the UI. */
