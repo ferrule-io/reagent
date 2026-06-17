@@ -9,6 +9,8 @@ on:
 jobs:
   package-mac:
     runs-on: macos-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v6
@@ -64,8 +66,19 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx electron-builder --mac --x64 --arm64 --publish never
 
-      # Step 5: Upload all .dmg and .zip files produced under desktop/out
-      - name: Upload macOS installers
+      # Step 5: Publish GitHub Release on tag push
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            desktop/out/*.dmg
+            desktop/out/*.zip
+          fail_on_unmatched_files: true
+
+      # Step 5 (fallback): Upload artifacts on manual workflow_dispatch
+      - name: Upload macOS installers (manual build)
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
           name: reagent-mac
