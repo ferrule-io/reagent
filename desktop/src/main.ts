@@ -34,8 +34,11 @@ function startBridge() {
   }
 
   logLines.push(`[INFO] starting bridge: ${process.execPath} (ELECTRON_RUN_AS_NODE) ${entry}`);
+  const extraEnv: NodeJS.ProcessEnv = app.isPackaged
+    ? { REAGENT_BUNDLED_PLUGIN_DIR: path.join(process.resourcesPath, 'plugin') }
+    : {};
   bridgeProcess = spawn(process.execPath, [entry], {
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

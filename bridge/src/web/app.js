@@ -1,5 +1,6 @@
 const items = new Map();
 let repos = [];
+let pluginInstallCmd = null; // populated by init(), consumed by renderListPage()
 
 // ─── Routing ────────────────────────────────────────────────────────────────
 
@@ -136,6 +137,35 @@ function renderListPage() {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .forEach((it) => itemsDiv.appendChild(card(it)));
   main.appendChild(itemsDiv);
+
+  // Plugin install hint — only shown when server reports a marketplaceAddCommand.
+  if (pluginInstallCmd) {
+    const section = document.createElement("section");
+    section.id = "plugin-install";
+    section.style.marginTop = "16px";
+
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = "Install plugin in Claude Code";
+    details.appendChild(summary);
+
+    const desc = document.createElement("p");
+    desc.style.cssText = "font-size:13px;color:var(--text-muted);margin:8px 0 4px";
+    desc.textContent =
+      "Run this command inside a Claude Code session to install the reagent plugin:";
+    details.appendChild(desc);
+
+    const code = document.createElement("code");
+    code.style.cssText =
+      "display:block;background:var(--surface);border:1px solid var(--border);" +
+      "border-radius:var(--radius);padding:8px 10px;font-size:13px;" +
+      "color:var(--warm-code);word-break:break-all";
+    code.textContent = pluginInstallCmd;
+    details.appendChild(code);
+
+    section.appendChild(details);
+    main.appendChild(section);
+  }
 }
 
 function card(it) {
@@ -821,6 +851,15 @@ function newWorkForm() {
 async function init() {
   const [itemsRes] = await Promise.all([fetch("/api/items"), loadRepos()]);
   for (const it of await itemsRes.json()) items.set(it.id, it);
+
+  // Fetch plugin install command once; stored in module-level cache for renderListPage.
+  try {
+    const pluginRes = await fetch("/api/plugin");
+    if (pluginRes.ok) {
+      const { marketplaceAddCommand } = await pluginRes.json();
+      if (marketplaceAddCommand) pluginInstallCmd = marketplaceAddCommand;
+    }
+  } catch (_) {}
 
   route();
 

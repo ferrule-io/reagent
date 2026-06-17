@@ -18,12 +18,14 @@ export interface HttpDeps {
   /** Optional: when present, phone-submitted work is launched and re-launched on approval. */
   launcher?: SessionLauncher;
   worktreesDir: string;
+  /** Optional: resolved plugin directory (set in packaged mode). */
+  pluginDir?: string;
 }
 
 const webDir = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 
 export function buildHttpServer(deps: HttpDeps): FastifyInstance {
-  const { store, repos, registry, checkpoints, launcher, worktreesDir } = deps;
+  const { store, repos, registry, checkpoints, launcher, worktreesDir, pluginDir } = deps;
   const app = Fastify({ logger: false, forceCloseConnections: true });
 
   // ── Repo registry routes ─────────────────────────────────────────────────
@@ -128,6 +130,21 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
       launcher?.resume({ id, repoPath: item.repoPath });
     }
     return { ok: true };
+  });
+
+  app.get("/api/plugin", async () => {
+    const dir = pluginDir ?? null;
+    let version: string | null = null;
+    if (dir) {
+      try {
+        const pj = join(dir, ".claude-plugin", "plugin.json");
+        version = (JSON.parse(readFileSync(pj, "utf8")).version as string) ?? null;
+      } catch {
+        /* ignore */
+      }
+    }
+    const marketplaceAddCommand = dir ? `/plugin marketplace add ${dir}` : null;
+    return { pluginDir: dir, version, marketplaceAddCommand };
   });
 
   app.get("/api/stream", (req, reply) => {
