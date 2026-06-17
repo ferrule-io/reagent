@@ -136,6 +136,25 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
     req.raw.on("close", () => off());
   });
 
+  app.get("/favicon.ico", async (_req, reply) => {
+    return reply.redirect("/icons/favicon-32.png", 302);
+  });
+
+  app.get("/icons/:filename", async (req, reply) => {
+    const { filename } = req.params as { filename: string };
+    // Only allow the specific PNG files we ship to prevent path traversal.
+    const allowed = new Set([
+      "favicon-16.png",
+      "favicon-32.png",
+      "icon-192.png",
+      "icon-512.png",
+      "icon-maskable-512.png",
+    ]);
+    if (!allowed.has(filename)) return reply.code(404).send({ error: "not found" });
+    reply.type("image/png");
+    return readFileSync(join(webDir, "icons", filename));
+  });
+
   for (const [route, file, type] of [
     ["/", "index.html", "text/html"],
     ["/app.js", "app.js", "text/javascript"],
