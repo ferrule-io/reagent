@@ -23,7 +23,14 @@ Procedure:
    d. All subsequent file edits and `git` commands run from `worktreePath`, not `repoPath`. Do NOT run `git checkout` in `repoPath` — that would disturb the shared working tree.
 2. Read the unit's plan doc at `unit.planDocPath`. Implement exactly the approach and acceptance criteria described there, touching only files within `unit.scope`.
 3. If `violations[]` are supplied (re-invocation after review FAIL): address each violation within `unit.scope` only. Do not make any other changes.
-4. Run the project's tests/build if an obvious command exists; if they fail, fix within scope.
-5. Commit the change with a clear message referencing the work item and unit (e.g. `feat: <summary> (wi_<id> <unit.id>)`).
+4. Run CHECKS.md checks and fix failures within scope:
+   a. Derive the slug from the branch name (the part after `reagent/`). Read `docs/reagent/<slug>/CHECKS.md` from the worktree root. If CHECKS.md is absent, emit a warning and fall back to the `agents/check-discovery.md` procedure to discover checks ad-hoc.
+   b. Run every check command listed in the CHECKS.md table, in order, from the worktree root.
+   c. For each failure, determine whether it was pre-existing (already listed in the "Pre-existing failures" section of CHECKS.md):
+      - **Pre-existing failure**: do NOT fix it. Record the check name and error summary to include in the final `report_status` call. Do not block the commit solely because of pre-existing failures.
+      - **New failure** (introduced by this unit's changes): fix it within `unit.scope`. If fixing requires a change outside `unit.scope`, emit a clear error, call `report_status` with `phase: "FAILED"`, and stop — do not silently expand scope.
+   d. Re-run any checks that had new failures after fixing, until all non-pre-existing failures are resolved.
+   e. Only then proceed to commit (step 5).
+5. Commit the change **after all new failures from step 4 are resolved** with a clear message referencing the work item and unit (e.g. `feat: <summary> (wi_<id> <unit.id>)`).
 6. Call `mcp__plugin_reagent_reagent-bridge__report_status` with `{ id, phase: "EXECUTE", line: "<one-line summary of what you changed>", branch: "<the branch you worked on>" }`.
-7. Report back to the caller: the branch name, files changed, and whether tests/build passed.
+7. Report back to the caller: the branch name, files changed, and whether each CHECKS.md check passed or was pre-existing-failed.
