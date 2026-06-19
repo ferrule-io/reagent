@@ -416,7 +416,7 @@ describe("HTTP API — launcher wiring", () => {
     expect(launcher.resumes).toEqual([{ id: "r", repoPath: "/tmp/repo" }]);
   });
 
-  it("does NOT re-launch on approval of a terminal item (its live session continues)", async () => {
+  it("re-launches resume on approval of a terminal item", async () => {
     store.create({ id: "t", title: "T", repoPath: "/tmp/repo", request: "q", origin: "terminal" });
     cps.open("t", "cp_t", "approve?");
     store.update("t", (it) => {
@@ -435,7 +435,7 @@ describe("HTTP API — launcher wiring", () => {
       url: "/api/items/t/decision",
       payload: { result: "approve" },
     });
-    expect(launcher.resumes).toEqual([]);
+    expect(launcher.resumes).toEqual([{ id: "t", repoPath: "/tmp/repo" }]);
   });
 });
 

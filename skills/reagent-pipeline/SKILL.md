@@ -10,7 +10,7 @@ All state and the human approval gate live in the **reagent bridge**, reached vi
 (`mcp__plugin_reagent_reagent-bridge__*`). The bridge must be running at http://localhost:4319.
 
 You are given `$ARGUMENTS`, beginning with a verb:
-- `start <repoPath> <request...>` — begin a new work item **interactively**: you stay open and poll the gate until the human decides.
+- `start <repoPath> <request...>` — begin a new work item: investigate, open the propose gate once, then **end your turn** (the bridge re-launches you via `resume <id>` when the human decides).
 - `start-async <id> <repoPath> <request...>` — begin a **launched** work item with a pre-assigned `id`: investigate, open the propose gate, then **end your turn** (the bridge re-launches you to continue after the human responds). You are short-lived — never poll.
 - `resume <id>` — continue a launched work item: do the next single step, then end your turn if still waiting.
 
@@ -131,23 +131,19 @@ Report the branch name and a one-line summary. Do not push.
 
 ---
 
-## `start` (interactive)
+## `start`
 
 1. **INTAKE.** Generate a work item id `wi_<8 hex chars>`. Derive a short `title`. Call
    `register_work_item({ id, title, repoPath, request: "<full request text>", origin: "terminal" })` and
    `report_status({ id, phase: "INVESTIGATE", line: "starting investigation" })`.
    Then immediately fetch the item: `curl -s http://localhost:4319/api/items/<id>` to get `worktreePath` and `baseBranch`.
 2. **INVESTIGATE** (shared step above).
-3. **PROPOSE (poll).** Generate proposal. Call `report_status({ id, phase: "PROPOSE", line: "proposal ready", proposal })`.
-   Call `await_decision({ id, prompt })`.
-   - On `{ "status": "pending" }`, **call it again immediately** with the same arguments. Keep polling.
-   - **Unattended wait: do NOT stop, do NOT ask the user, do NOT start other work.** The human answers from the bridge UI / phone. Loop until `decided`.
-   - On `decided`:
-     - `approve` → **PLAN** (shared step), then **EXECUTE** (shared step).
-     - `revise` → incorporate feedback, regenerate proposal, `report_status` with new proposal, call `await_decision` again. Poll until decided.
-     - `reject` → `complete_work_item({ id, phase: "REJECTED" })`, report, STOP.
-4. **PLAN** (shared step above).
-5. **EXECUTE** (shared step above).
+3. **PROPOSE (open + exit).** Generate proposal. Call `report_status({ id, phase: "PROPOSE", line: "proposal ready", proposal })`.
+   Call `await_decision({ id, prompt })` **exactly once**.
+   - On `{ "status": "pending" }` (expected): **end your turn now** — report "gate opened; awaiting proposal decision (bridge will resume me)." Do NOT poll.
+   - On `decided`: handle as in the `resume <id>` step for a decided pendingCheckpoint (approve → PLAN + EXECUTE, revise → regenerate + reopen gate once + exit, reject → complete_work_item REJECTED).
+
+PLAN and EXECUTE happen via `resume <id>` after the human approves — they are not run inline from `start`.
 
 ## `start-async <id> <repoPath> <request...>` (launched — short-lived)
 
@@ -184,7 +180,7 @@ Report the branch name and a one-line summary. Do not push.
 - **FAIL loops are bounded:** plan-review allows up to 2 replan rounds; per-unit code-review allows up to 2 executor retries. If still failing after the limit, call `complete_work_item({ id, phase: "FAILED" })` and stop — do not silently proceed.
 - Thread the work item `id` through every bridge call.
 - Keep `report_status` lines short and human-readable — they show up live in the bridge UI.
-- **Async mode (`start-async`/`resume`) is short-lived: do exactly one step (open the gate, or execute), then end your turn. Never poll in async mode — the bridge re-launches you on the human's decision.**
+- **All modes are event-driven at the gate: open it once, then end your turn. The bridge re-launches you via `resume <id>` when the human decides. Never poll — not in `start`, not in `start-async`, not in `resume`.**
 - The `revise` result is a first-class outcome: always incorporate the note from `decision.note` into the regenerated proposal. Each revise round is appended to `item.feedback[]` by the bridge automatically.
 - **The shared main checkout (`repoPath`) is read-only for automation — all file edits happen inside the worktree.** Never run `git checkout` in `repoPath`.
 - Plan documents (`docs/reagent/<slug>/<unit-slug>.md`) are written to the **worktree** (a checkout of the feature branch), committed there by the planner. They reach the main branch only via merge-back.

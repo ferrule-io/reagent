@@ -133,16 +133,14 @@ export function buildHttpServer(deps: HttpDeps): FastifyInstance {
         it.phase = "PROPOSE";
       }
     });
-    // Wake any in-flight awaitDecision calls (terminal-origin sessions polling).
+    // Wake any in-flight awaitDecision calls (harmless no-op if no poller is waiting).
     if (checkpoints.has(cpId)) {
       checkpoints.resolve(cpId, decision);
     }
-    // Phone-origin work has no live session waiting — re-launch one to continue.
-    // Terminal-origin work has a live polling session that will continue itself.
-    // For revise, re-launch so the skill can regenerate the proposal.
-    if (item.origin === "phone") {
-      launcher?.resume({ id, repoPath: item.repoPath });
-    }
+    // Re-launch a session to continue — both phone and terminal items are now
+    // event-driven: the skill opens the gate once and exits, so the bridge must
+    // resume it on every decision.
+    launcher?.resume({ id, repoPath: item.repoPath });
     return { ok: true };
   });
 
